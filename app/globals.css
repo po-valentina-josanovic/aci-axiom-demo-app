@@ -1,0 +1,290 @@
+@import "tailwindcss";
+
+@theme {
+  /* Navigation & Layout */
+  --color-nav-bg: #152238;
+  --color-sidebar-bg: #1a2d42;
+  --color-sidebar-active: rgba(255, 255, 255, 0.12);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.08);
+
+  /* Primary Blues */
+  --color-primary: #2979ff;
+  --color-primary-hover: #2264d1;
+  --color-primary-light: #e3ecfa;
+  --color-header-blue: #2979ff;
+
+  /* Table */
+  --color-table-header-bg: #dbe4f0;
+  --color-table-border: #c8d1dc;
+  --color-table-row-alt: #f6f8fb;
+  --color-table-section-bg: #edf1f7;
+
+  /* Buttons */
+  --color-btn-outlined: #2979ff;
+  --color-btn-outlined-border: #a8c4e6;
+  --color-btn-solid: #2979ff;
+  --color-btn-danger: #d32f2f;
+  --color-btn-teal: #00796b;
+
+  /* Job Rows */
+  --color-job-border: #2979ff;
+  --color-job-bg: #e8f4fd;
+  --color-job-highlight: #fff8e1;
+  --color-job-highlight-border: #f9a825;
+
+  /* Text */
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #5a6577;
+  --color-text-muted: #8694a7;
+  --color-text-white: #ffffff;
+
+  /* Backgrounds */
+  --color-bg-light: #f1f5f9;
+  --color-bg-white: #ffffff;
+  --color-bg-subtle: #f8fafc;
+
+  /* Borders */
+  --color-border: #d9dfe7;
+  --color-border-light: #e8ecf1;
+  --color-border-focus: #2979ff;
+
+  /* Accents */
+  --color-teal: #00796b;
+  --color-red-accent: #d32f2f;
+  --color-green-online: #4caf50;
+  --color-amber: #f9a825;
+  --color-orange-pill: #e65100;
+}
+
+@layer base {
+  body {
+    font-family: 'Segoe UI', -apple-system, Arial, Helvetica, sans-serif;
+    font-size: 13px;
+    color: var(--color-text-primary);
+    background: var(--color-bg-light);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  ::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #eef1f5;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #a0aab8;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #8694a7;
+  }
+
+  /* Form element resets for consistent sizing */
+  input, select, textarea, button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  /* Focus styles */
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--color-border-focus) !important;
+    box-shadow: 0 0 0 2px rgba(41, 121, 255, 0.15);
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+  }
+
+  /* Table baseline */
+  table {
+    border-spacing: 0;
+  }
+}
+
+@layer components {
+  /* Outlined button (matches "Expand All", "Sort by Job Number" in PNG) */
+  .btn-outlined {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    background: var(--color-bg-white);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .btn-outlined:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  /* Solid primary button (matches "Apply Filters" in PNG) */
+  .btn-solid {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-solid:hover {
+    background: var(--color-primary-hover);
+  }
+
+  /* Filter dropdown label (matches "Company", "Departments" labels in PNG) */
+  .filter-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 3px;
+    white-space: nowrap;
+  }
+
+  /* Filter select/input (matches compact dropdowns in PNG) */
+  .filter-select {
+    display: block;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 12px;
+    background: #fff;
+    color: var(--color-text-primary);
+    min-width: 80px;
+    cursor: pointer;
+  }
+
+  /* Table header cell (matches light blue headers in PNG) */
+  .th-cell {
+    padding: 7px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--color-text-primary);
+    background: var(--color-table-header-bg);
+    border: 1px solid var(--color-table-border);
+    white-space: nowrap;
+  }
+
+  /* Table data cell */
+  .td-cell {
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-table-border);
+    text-align: center;
+  }
+
+  /* Section header row (matches "Total Resource Needs", "Goals" in PNG) */
+  .section-row {
+    background: var(--color-table-section-bg);
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--color-text-primary);
+  }
+  .section-row td {
+    padding: 6px 10px;
+    border: 1px solid var(--color-table-border);
+  }
+
+  /* Job expandable row (matches blue-bordered rows in PNG) */
+  .job-row {
+    border: 2px solid var(--color-job-border);
+    border-radius: 4px;
+    background: var(--color-job-bg);
+    margin: 4px 0;
+  }
+
+  /* Highlighted row (matches yellow/amber rows in PNG) */
+  .row-highlight {
+    background: var(--color-job-highlight) !important;
+  }
+
+  /* Collapsible section trigger */
+  .section-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .section-trigger svg {
+    transition: transform 0.15s ease;
+  }
+
+  /* Form input standard (matches inputs throughout the app) */
+  .form-input {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--color-text-primary);
+    background: #fff;
+  }
+  .form-input::placeholder {
+    color: var(--color-text-muted);
+  }
+  .form-input:disabled {
+    background: #f5f7fa;
+    color: var(--color-text-muted);
+    border-color: var(--color-border-light);
+  }
+
+  /* Form label standard */
+  .form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 5px;
+  }
+
+  /* Badge/pill */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+}
+
+/* Highlight pulse for scroll-to-field (outside layers so keyframes work) */
+.field-highlight {
+  animation: fieldHighlight 2s ease-out !important;
+}
+@keyframes fieldHighlight {
+  0%   { box-shadow: 0 0 0 3px rgba(249, 168, 37, 0.55); }
+  70%  { box-shadow: 0 0 0 3px rgba(249, 168, 37, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(249, 168, 37, 0); }
+}
+
+.ar-spinner {
+  animation: arSpin 0.9s linear infinite;
+}
+@keyframes arSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

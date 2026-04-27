@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:/Things/1. Poso-Projekti/precon-app/app/potential-projects/[id]\")",
+      "Bash(mkdir -p \"C:/Things/1. Poso-Projekti/precon-app/app/potential-projects/components\")",
+      "Bash(npx next:*)",
+      "Bash(grep -c \"padding\" .next/static/css/*.css)",
+      "Bash(npx -y acorn-jsx)",
+      "Bash(node -e ':*)",
+      "Bash(npm list:*)",
+      "WebFetch(domain:impeccable.style)",
+      "Bash(npx skills:*)",
+      "Bash(ls ~/.claude/commands/*.md)",
+      "Bash(wc -l app/globals.css app/components/*.jsx app/potential-projects/page.js app/potential-projects/components/*.jsx app/page.js app/layout.js)",
+      "Bash(npm run:*)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)"
+    ]
+  }
+}
