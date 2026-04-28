@@ -1,4 +1,22 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function TopNav() {
+  const router = useRouter();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setSettingsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   return (
     <nav
       className="flex items-center justify-between px-3 text-white"
@@ -61,12 +79,38 @@ export default function TopNav() {
         >
           Feedback
         </button>
-        <button className="flex items-center justify-center cursor-pointer" style={{ color: '#7ea3c8', background: 'none', border: 'none', padding: '4px' }}>
-          <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+        <div ref={settingsRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setSettingsOpen((o) => !o)}
+            className="flex items-center justify-center cursor-pointer"
+            style={{ color: settingsOpen ? '#fff' : '#7ea3c8', background: 'none', border: 'none', padding: '4px' }}
+          >
+            <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+          {settingsOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+              background: '#fff', border: '1px solid #d9dfe7', borderRadius: '7px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.14)', minWidth: '160px', zIndex: 999, overflow: 'hidden',
+            }}>
+              <button
+                onClick={() => { setSettingsOpen(false); router.push('/user-management'); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '9px 14px', fontSize: '13px', color: '#1e293b',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                User Management
+              </button>
+            </div>
+          )}
+        </div>
         <button
           className="flex items-center justify-center cursor-pointer"
           style={{
