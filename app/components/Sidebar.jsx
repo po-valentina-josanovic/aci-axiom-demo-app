@@ -84,7 +84,13 @@ const MENU = [
       { label: 'Awarded Manpower', icon: 'chart', href: '/awarded-manpower' },
     ],
   },
-  { label: 'Revenue Forecasts', icon: 'calendar', children: [] },
+  {
+    label: 'Revenue Forecasts',
+    icon: 'calendar',
+    children: [
+      { label: 'Division Forecast', icon: 'chart', href: '/division-forecast' },
+    ],
+  },
 ];
 
 function MenuItem({ item, depth = 0, pathname }) {
