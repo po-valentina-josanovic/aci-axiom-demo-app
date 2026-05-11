@@ -11,12 +11,12 @@ const thStyle = { padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontS
 const tdStyle = { padding: '10px 14px', fontSize: '12px', color: '#3a4a5c', borderBottom: '1px solid #e8ecf1' };
 
 export default function ClientContactsView() {
-  const { clientContacts, createClientContact, US_STATES, projects } = useProjects();
+  const { clientContacts, clientCompanies, createClientCompany, US_STATES, projects } = useProjects();
   const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ company_name: '', company_city: '', company_state: '', phone: '', email: '' });
+  const [form, setForm] = useState({ company_name: '', company_city: '', company_state: '' });
   const [returnData, setReturnData] = useState(null);
 
   useEffect(() => {
@@ -26,19 +26,20 @@ export default function ClientContactsView() {
     } catch { /* ignore */ }
   }, []);
 
-  // Map contact id -> projects
+  // Map CRM contact id -> projects (keyed by source_contact_id so CRM lookups resolve correctly)
   const contactJobsMap = useMemo(() => {
     const map = {};
     (projects || []).forEach((p) => {
       (p.contacts || []).forEach((c) => {
-        if (!map[c.id]) map[c.id] = [];
-        map[c.id].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
+        const key = c.source_contact_id || c.id;
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
       });
     });
     return map;
   }, [projects]);
 
-  // Group contacts by company
+  // Group contacts by company, then merge in companies with no contacts yet
   const companyGroups = useMemo(() => {
     const map = {};
     clientContacts.forEach((c) => {
@@ -53,13 +54,26 @@ export default function ClientContactsView() {
         };
       }
       map[key].contacts.push(c);
-      // Inherit city/state from first contact that has it
       if (!map[key].company_city && c.company_city) map[key].company_city = c.company_city;
       if (!map[key].company_state && c.company_state) map[key].company_state = c.company_state;
       (contactJobsMap[c.id] || []).forEach((j) => map[key].projectSet.add(j.id));
     });
+    clientCompanies.forEach((co) => {
+      if (!map[co.company_name]) {
+        map[co.company_name] = {
+          company_name: co.company_name,
+          company_city: co.company_city || '',
+          company_state: co.company_state || '',
+          contacts: [],
+          projectSet: new Set(),
+        };
+      } else {
+        if (!map[co.company_name].company_city && co.company_city) map[co.company_name].company_city = co.company_city;
+        if (!map[co.company_name].company_state && co.company_state) map[co.company_name].company_state = co.company_state;
+      }
+    });
     return Object.values(map).sort((a, b) => a.company_name.localeCompare(b.company_name));
-  }, [clientContacts, contactJobsMap]);
+  }, [clientContacts, clientCompanies, contactJobsMap]);
 
   // Filter
   const filteredGroups = useMemo(() => {
@@ -78,19 +92,14 @@ export default function ClientContactsView() {
 
   function handleSave() {
     if (!form.company_name.trim()) return;
-    // Create a placeholder contact entry for the company — contacts are added from the company profile
-    createClientContact({
-      name: form.company_name,
+    createClientCompany({
       company_name: form.company_name,
       company_city: form.company_city,
       company_state: form.company_state,
-      phone: form.phone,
-      email: form.email,
-      contact_role: 'Client',
-      is_company_placeholder: true,
     });
     setModalOpen(false);
-    setForm({ company_name: '', company_city: '', company_state: '', phone: '', email: '' });
+    setForm({ company_name: '', company_city: '', company_state: '' });
+    router.push(`/client-contacts/${encodeURIComponent(form.company_name)}`);
   }
 
   function handleReturnToProject() {
@@ -111,7 +120,7 @@ export default function ClientContactsView() {
           <div style={{ fontSize: '10px', color: '#5a6577', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '1px' }}>
             Business Dev - Inputs
           </div>
-          <h1 style={{ fontSize: '17px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Contacts Management</h1>
+          <h1 style={{ fontSize: '17px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Company & Contact Management</h1>
         </div>
         <button
           onClick={() => setModalOpen(true)}
@@ -147,7 +156,7 @@ export default function ClientContactsView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={thStyle}>Client / Company</th>
+                  <th style={thStyle}>Company</th>
                   <th style={thStyle}>City</th>
                   <th style={thStyle}>State</th>
                   <th style={thStyle}>Contacts</th>
@@ -228,14 +237,6 @@ export default function ClientContactsView() {
                   <option value="">Select...</option>
                   {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
-              </div>
-              <div>
-                <label style={labelStyle}>Phone</label>
-                <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={inputStyle} placeholder="(555) 555-5555" />
-              </div>
-              <div>
-                <label style={labelStyle}>Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={inputStyle} placeholder="email@example.com" />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
