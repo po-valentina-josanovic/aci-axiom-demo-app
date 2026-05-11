@@ -423,10 +423,9 @@ function loadProjects() {
   try {
     const stored = localStorage.getItem('potential_projects');
     const existing = stored ? JSON.parse(stored) : [];
-    // Merge: add missing seeds, replace stale seeds with fresh data
-    const seedIds = new Set(SEED_PROJECTS.map((s) => s.id));
-    const userProjects = existing.filter((p) => !seedIds.has(p.id));
-    return [...userProjects, ...SEED_PROJECTS];
+    const existingIds = new Set(existing.map((p) => p.id));
+    const missingSeedProjects = SEED_PROJECTS.filter((s) => !existingIds.has(s.id));
+    return [...existing, ...missingSeedProjects];
   } catch {
     return [...SEED_PROJECTS];
   }
@@ -469,18 +468,34 @@ function saveCompetitors(competitors) {
   localStorage.setItem('master_competitors', JSON.stringify(competitors));
 }
 
+// --- Client Companies (CRM) ---
+function loadClientCompanies() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('master_client_companies');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveClientCompanies(companies) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('master_client_companies', JSON.stringify(companies));
+}
+
 // --- Master Client Contacts (CRM) ---
 const SEED_CLIENT_CONTACTS = [
-  { id: 'c1', name: 'Dr. Alan Reed', contact_role: 'Client', company_name: 'Metro Health', company_city: 'Columbus', company_state: 'OH', email: 'areed@metrohealth.org', phone: '(614) 555-0120', created_at: '2026-03-08T10:00:00.000Z' },
-  { id: 'c2', name: 'Maria Torres', contact_role: 'Client', company_name: 'Lakeview ISD', company_city: 'Cleveland', company_state: 'OH', email: 'mtorres@lakeviewisd.edu', phone: '(216) 555-0340', created_at: '2026-03-20T09:00:00.000Z' },
-  { id: 'c3', name: 'Jeff Conlin', contact_role: 'Architect', company_name: 'Conlin Architects', company_city: 'Cleveland', company_state: 'OH', email: 'jconlin@conlinarch.com', phone: '(216) 555-0188', created_at: '2026-03-20T09:05:00.000Z' },
-  { id: 'c4', name: 'Bill Hargrove', contact_role: 'Client', company_name: 'Apex Manufacturing', company_city: 'Akron', company_state: 'OH', email: 'bhargrove@apexmfg.com', phone: '(330) 555-0275', created_at: '2026-01-12T08:00:00.000Z' },
-  { id: 'c5', name: 'Karen Walsh', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'kwalsh@riverfrontdev.com', phone: '(513) 555-0410', created_at: '2026-04-01T11:00:00.000Z' },
-  { id: 'c6', name: 'Thomas Nguyen', contact_role: 'Client', company_name: 'GSA Region 5', company_city: 'St. Paul', company_state: 'MN', email: 'tnguyen@gsa.gov', phone: '(651) 555-0190', created_at: '2026-02-15T14:00:00.000Z' },
-  { id: 'c7', name: 'Patricia Holmes', contact_role: 'Engineer', company_name: 'Holmes Fire Engineering', company_city: 'St. Paul', company_state: 'MN', email: 'pholmes@holmesfe.com', phone: '(651) 555-0233', created_at: '2026-02-15T14:10:00.000Z' },
-  { id: 'c-bt1', name: 'Steve Morton', contact_role: 'Client', company_name: 'Grandview Properties', company_city: 'Columbus', company_state: 'OH', email: 'smorton@grandviewprop.com', phone: '(614) 555-0455', created_at: '2026-02-18T08:00:00.000Z' },
-  { id: 'c-bt2', name: 'Dr. Linda Park', contact_role: 'Client', company_name: 'Mercy Health System', company_city: 'Toledo', company_state: 'OH', email: 'lpark@mercyhealth.org', phone: '(419) 555-0312', created_at: '2025-12-08T09:00:00.000Z' },
-  { id: 'c-bt3', name: 'Ryan Schultz', contact_role: 'Engineer', company_name: 'Schultz MEP', company_city: 'Toledo', company_state: 'OH', email: 'rschultz@schultzmep.com', phone: '(419) 555-0198', created_at: '2025-12-08T09:10:00.000Z' },
+  { id: 'c1', name: 'Dr. Alan Reed', contact_role: ['Client'], company_name: 'Metro Health', company_city: 'Columbus', company_state: 'OH', email: 'areed@metrohealth.org', phone: '(614) 555-0120', created_at: '2026-03-08T10:00:00.000Z' },
+  { id: 'c2', name: 'Maria Torres', contact_role: ['Client'], company_name: 'Lakeview ISD', company_city: 'Cleveland', company_state: 'OH', email: 'mtorres@lakeviewisd.edu', phone: '(216) 555-0340', created_at: '2026-03-20T09:00:00.000Z' },
+  { id: 'c3', name: 'Jeff Conlin', contact_role: ['Architect'], company_name: 'Conlin Architects', company_city: 'Cleveland', company_state: 'OH', email: 'jconlin@conlinarch.com', phone: '(216) 555-0188', created_at: '2026-03-20T09:05:00.000Z' },
+  { id: 'c4', name: 'Bill Hargrove', contact_role: ['Client'], company_name: 'Apex Manufacturing', company_city: 'Akron', company_state: 'OH', email: 'bhargrove@apexmfg.com', phone: '(330) 555-0275', created_at: '2026-01-12T08:00:00.000Z' },
+  { id: 'c5', name: 'Karen Walsh', contact_role: ['Client'], company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'kwalsh@riverfrontdev.com', phone: '(513) 555-0410', created_at: '2026-04-01T11:00:00.000Z' },
+  { id: 'c6', name: 'Thomas Nguyen', contact_role: ['Client'], company_name: 'GSA Region 5', company_city: 'St. Paul', company_state: 'MN', email: 'tnguyen@gsa.gov', phone: '(651) 555-0190', created_at: '2026-02-15T14:00:00.000Z' },
+  { id: 'c7', name: 'Patricia Holmes', contact_role: ['Engineer'], company_name: 'Holmes Fire Engineering', company_city: 'St. Paul', company_state: 'MN', email: 'pholmes@holmesfe.com', phone: '(651) 555-0233', created_at: '2026-02-15T14:10:00.000Z' },
+  { id: 'c-bt1', name: 'Steve Morton', contact_role: ['Client'], company_name: 'Grandview Properties', company_city: 'Columbus', company_state: 'OH', email: 'smorton@grandviewprop.com', phone: '(614) 555-0455', created_at: '2026-02-18T08:00:00.000Z' },
+  { id: 'c-bt2', name: 'Dr. Linda Park', contact_role: ['Client'], company_name: 'Mercy Health System', company_city: 'Toledo', company_state: 'OH', email: 'lpark@mercyhealth.org', phone: '(419) 555-0312', created_at: '2025-12-08T09:00:00.000Z' },
+  { id: 'c-bt3', name: 'Ryan Schultz', contact_role: ['Engineer'], company_name: 'Schultz MEP', company_city: 'Toledo', company_state: 'OH', email: 'rschultz@schultzmep.com', phone: '(419) 555-0198', created_at: '2025-12-08T09:10:00.000Z' },
 ];
 
 function loadClientContacts() {
@@ -507,6 +522,7 @@ export function ProjectsProvider({ children }) {
   const [companies, setCompanies] = useState([]);
   const [competitors, setCompetitors] = useState([]);
   const [clientContacts, setClientContacts] = useState([]);
+  const [clientCompanies, setClientCompanies] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -514,6 +530,7 @@ export function ProjectsProvider({ children }) {
     setCompanies(loadCompanies());
     setCompetitors(loadCompetitors());
     setClientContacts(loadClientContacts());
+    setClientCompanies(loadClientCompanies());
     setLoaded(true);
   }, []);
 
@@ -532,6 +549,10 @@ export function ProjectsProvider({ children }) {
   useEffect(() => {
     if (loaded) saveClientContacts(clientContacts);
   }, [clientContacts, loaded]);
+
+  useEffect(() => {
+    if (loaded) saveClientCompanies(clientCompanies);
+  }, [clientCompanies, loaded]);
 
   // --- Project CRUD ---
   const createProject = useCallback((data) => {
@@ -739,6 +760,26 @@ export function ProjectsProvider({ children }) {
     setCompetitors((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // --- Client Companies CRUD (CRM) ---
+  const createClientCompany = useCallback((data) => {
+    const company = {
+      id: crypto.randomUUID(),
+      company_name: data.company_name || '',
+      company_city: data.company_city || '',
+      company_state: data.company_state || '',
+      vendor_enrollment: data.vendor_enrollment || null,
+      created_at: new Date().toISOString(),
+    };
+    setClientCompanies((prev) => [company, ...prev]);
+    return company;
+  }, []);
+
+  const updateClientCompany = useCallback((id, updates) => {
+    setClientCompanies((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+    );
+  }, []);
+
   // --- Client Contacts CRUD (CRM) ---
   const createClientContact = useCallback((data) => {
     const now = new Date().toISOString();
@@ -750,7 +791,8 @@ export function ProjectsProvider({ children }) {
       company_name: data.company_name || '',
       company_city: data.company_city || '',
       company_state: data.company_state || '',
-      contact_role: data.contact_role || 'Client',
+      contact_role: Array.isArray(data.contact_role) ? data.contact_role : [data.contact_role || 'Client'],
+      is_primary: data.is_primary || false,
       created_at: now,
       updated_at: now,
     };
@@ -786,6 +828,9 @@ export function ProjectsProvider({ children }) {
         createCompetitor,
         updateCompetitor,
         deleteCompetitor,
+        clientCompanies,
+        createClientCompany,
+        updateClientCompany,
         clientContacts,
         createClientContact,
         updateClientContact,

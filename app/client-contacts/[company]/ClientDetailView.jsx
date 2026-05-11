@@ -9,30 +9,92 @@ const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fo
 const thStyle = { padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: '10px', color: '#5a6577', background: '#f1f5f9', borderBottom: '1px solid #e8ecf1' };
 const tdStyle = { padding: '8px 12px', fontSize: '12px', color: '#3a4a5c', borderBottom: '1px solid #f1f5f9' };
 
+function MultiRoleSelect({ value = [], options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const toggle = (role) => onChange(value.includes(role) ? value.filter((r) => r !== role) : [...value, role]);
+  return (
+    <div style={{ position: 'relative' }}>
+      {open && <div style={{ position: 'fixed', inset: 0, zIndex: 9 }} onClick={() => setOpen(false)} />}
+      <div
+        onClick={() => setOpen((v) => !v)}
+        style={{ ...inputStyle, position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', cursor: 'pointer', minHeight: '34px', paddingRight: '28px' }}
+      >
+        {value.length === 0
+          ? <span style={{ color: '#8694a7' }}>Select roles...</span>
+          : value.map((r) => (
+              <span key={r} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{r}</span>
+            ))
+        }
+        <svg style={{ width: '12px', height: '12px', color: '#8694a7', position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={open ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+        </svg>
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, overflow: 'hidden' }}>
+          {options.map((r) => {
+            const selected = value.includes(r);
+            return (
+              <div
+                key={r}
+                onClick={(e) => { e.stopPropagation(); toggle(r); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', cursor: 'pointer', background: selected ? '#eff6ff' : 'transparent', fontSize: '12px', color: selected ? '#1d4ed8' : '#1e293b' }}
+              >
+                <div style={{ width: '14px', height: '14px', borderRadius: '3px', border: `1px solid ${selected ? '#2979ff' : '#c8d1dc'}`, background: selected ? '#2979ff' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {selected && <svg style={{ width: '10px', height: '10px' }} fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                {r}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClientDetailView({ companyName }) {
-  const { clientContacts, createClientContact, updateClientContact, deleteClientContact, CONTACT_ROLES, US_STATES, projects } = useProjects();
+  const { clientContacts, clientCompanies, createClientContact, updateClientContact, deleteClientContact, createClientCompany, updateClientCompany, CONTACT_ROLES, projects } = useProjects();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', company_name: companyName, company_city: '', company_state: '', contact_role: 'Client' });
-  const [enrollmentAlert, setEnrollmentAlert] = useState(null); // contact name that just triggered alert
+  const [form, setForm] = useState({ name: '', email: '', phone: '', company_name: companyName, company_city: '', company_state: '', contact_role: ['Client'], is_primary: false });
+  const [enrollmentAlert, setEnrollmentAlert] = useState(null);
+  const [primaryConflict, setPrimaryConflict] = useState(null); // { existingContact, pendingForm }
 
-  // Contacts for this company
+  // Contacts for this company — primary always first
   const companyContacts = useMemo(() =>
-    clientContacts.filter((c) => (c.company_name || '') === companyName),
+    clientContacts
+      .filter((c) => (c.company_name || '') === companyName)
+      .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0)),
   [clientContacts, companyName]);
 
-  // Company info from first contact
-  const companyCity = companyContacts[0]?.company_city || '';
-  const companyState = companyContacts[0]?.company_state || '';
+  // Company info — prefer the clientCompanies record, fall back to first contact
+  const companyRecord = clientCompanies.find((co) => co.company_name === companyName);
+  const companyCity = companyRecord?.company_city || companyContacts[0]?.company_city || '';
+  const companyState = companyRecord?.company_state || companyContacts[0]?.company_state || '';
 
   // Map contact id -> projects
   const contactJobsMap = useMemo(() => {
     const map = {};
     (projects || []).forEach((p) => {
       (p.contacts || []).forEach((c) => {
-        if (!map[c.id]) map[c.id] = [];
-        map[c.id].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
+        const key = c.source_contact_id || c.id;
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
+      });
+    });
+    return map;
+  }, [projects]);
+
+  // Map contact id -> all distinct roles assigned across projects
+  const contactRolesMap = useMemo(() => {
+    const map = {};
+    (projects || []).forEach((p) => {
+      (p.contacts || []).forEach((c) => {
+        const key = c.source_contact_id || c.id;
+        if (!map[key]) map[key] = new Set();
+        const roles = Array.isArray(c.contact_role) ? c.contact_role : [c.contact_role].filter(Boolean);
+        roles.forEach((r) => map[key].add(r));
       });
     });
     return map;
@@ -52,7 +114,7 @@ export default function ClientDetailView({ companyName }) {
 
   function openAddModal() {
     setEditingId(null);
-    setForm({ name: '', email: '', phone: '', company_name: companyName, company_city: companyCity, company_state: companyState, contact_role: 'Client' });
+    setForm({ name: '', email: '', phone: '', company_name: companyName, company_city: companyCity, company_state: companyState, contact_role: ['Client'], is_primary: false });
     setModalOpen(true);
   }
 
@@ -61,27 +123,60 @@ export default function ClientDetailView({ companyName }) {
     setForm({
       name: contact.name, email: contact.email || '', phone: contact.phone || '',
       company_name: contact.company_name || companyName, company_city: contact.company_city || '',
-      company_state: contact.company_state || '', contact_role: contact.contact_role || 'Client',
+      company_state: contact.company_state || '', contact_role: Array.isArray(contact.contact_role) ? contact.contact_role : [contact.contact_role || 'Client'],
+      is_primary: contact.is_primary || false,
     });
     setModalOpen(true);
   }
 
-  function handleSave() {
-    if (!form.name.trim()) return;
+  function commitSave(finalForm) {
     if (editingId) {
-      updateClientContact(editingId, form);
+      if (finalForm.is_primary) {
+        companyContacts.forEach((c) => {
+          if (c.id !== editingId && c.is_primary) updateClientContact(c.id, { is_primary: false });
+        });
+      }
+      updateClientContact(editingId, finalForm);
     } else {
-      const isClient = form.contact_role === 'Client';
-      createClientContact({ ...form, vendor_enrollment: isClient ? 'pending' : null });
-      if (isClient) setEnrollmentAlert(form.name.trim());
+      if (finalForm.is_primary) {
+        companyContacts.forEach((c) => {
+          if (c.is_primary) updateClientContact(c.id, { is_primary: false });
+        });
+      }
+      createClientContact(finalForm);
+      if ((finalForm.contact_role || []).includes('Client')) {
+        const hasExistingClient = companyContacts.some((c) => (c.contact_role || []).includes('Client'));
+        if (!hasExistingClient) {
+          if (companyRecord) {
+            updateClientCompany(companyRecord.id, { vendor_enrollment: 'pending' });
+          } else {
+            createClientCompany({ company_name: companyName, company_city: companyCity, company_state: companyState, vendor_enrollment: 'pending' });
+          }
+          setEnrollmentAlert(finalForm.name.trim());
+        }
+      }
     }
     setModalOpen(false);
     setEditingId(null);
   }
 
-  function markEnrollmentComplete(contactId) {
-    updateClientContact(contactId, { vendor_enrollment: 'completed' });
+  function handleSave() {
+    if (!form.name.trim()) return;
+    if (form.is_primary) {
+      const existing = companyContacts.find((c) => c.is_primary && c.id !== editingId);
+      if (existing) {
+        setPrimaryConflict({ existingContact: existing, pendingForm: form });
+        return;
+      }
+    }
+    commitSave(form);
   }
+
+  function markCompanyEnrollmentComplete() {
+    if (companyRecord) updateClientCompany(companyRecord.id, { vendor_enrollment: 'completed' });
+  }
+
+  const enrollmentStatus = companyRecord?.vendor_enrollment || null;
 
   const STAGE_COLORS = {
     Preliminary: { bg: '#e8ecf1', color: '#1e293b' },
@@ -119,6 +214,28 @@ export default function ClientDetailView({ companyName }) {
                     {companyCity}{companyState ? `, ${companyState}` : ''}
                   </span>
                 )}
+                {enrollmentStatus === 'pending' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #f9a825', padding: '2px 8px', borderRadius: '10px' }}>
+                      <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Vendor Enrollment Pending
+                    </span>
+                    <button
+                      onClick={markCompanyEnrollmentComplete}
+                      title="Mark vendor enrollment as completed"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: '#15803d', background: '#dcfce7', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '10px', cursor: 'pointer' }}
+                    >
+                      <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      Mark Complete
+                    </button>
+                  </span>
+                )}
+                {enrollmentStatus === 'completed' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 600, color: '#15803d', background: '#dcfce7', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '10px' }}>
+                    <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    Vendor Enrolled
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -137,31 +254,23 @@ export default function ClientDetailView({ companyName }) {
 
       {/* Vendor Enrollment Popup */}
       {enrollmentAlert && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={() => setEnrollmentAlert(null)}>
-          <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', margin: '16px', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ background: '#fffbeb', borderBottom: '1px solid #fde68a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#fef3c7', border: '2px solid #f9a825', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg style={{ width: '18px', height: '18px', color: '#b45309' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: '#92400e' }}>Vendor Enrollment Needed</div>
-                <div style={{ fontSize: '11px', color: '#b45309', marginTop: '1px' }}>Action required</div>
-              </div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', margin: '16px', overflow: 'hidden' }}>
+            <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '1px solid #e8ecf1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Vendor enrollment needed</span>
+              <button onClick={() => setEnrollmentAlert(null)} style={{ background: 'none', border: 'none', color: '#8694a7', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <div style={{ padding: '16px 20px' }}>
-              <p style={{ fontSize: '13px', color: '#3a4a5c', margin: '0 0 8px 0', lineHeight: 1.5 }}>
-                <strong>{enrollmentAlert}</strong> has been added as a Client contact.
-              </p>
-              <p style={{ fontSize: '12px', color: '#5a6577', margin: 0, lineHeight: 1.5 }}>
-                Please initiate the vendor enrollment process for this contact. You can track the enrollment status in the Vendor Enrollment column.
+            <div style={{ padding: '16px' }}>
+              <p style={{ fontSize: '12px', color: '#3a4a5c', margin: 0, lineHeight: 1.6 }}>
+                <strong>{companyName}</strong> has been added as a client. Vendor enrollment needs to be started for this company before any work can move forward.
               </p>
             </div>
-            <div style={{ padding: '12px 20px', borderTop: '1px solid #e8ecf1', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #e8ecf1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button
                 onClick={() => setEnrollmentAlert(null)}
-                style={{ padding: '7px 18px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#f9a825', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}
               >
                 Got it
               </button>
@@ -205,7 +314,6 @@ export default function ClientDetailView({ companyName }) {
                     <th style={thStyle}>Role</th>
                     <th style={thStyle}>Email</th>
                     <th style={thStyle}>Phone</th>
-                    <th style={thStyle}>Vendor Enrollment</th>
                     <th style={thStyle}>Projects</th>
                     <th style={{ ...thStyle, width: '60px' }}></th>
                   </tr>
@@ -213,57 +321,43 @@ export default function ClientDetailView({ companyName }) {
                 <tbody>
                   {companyContacts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
+                      <td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
                         No contacts yet. Click "Add Contact" to create one.
                       </td>
                     </tr>
                   ) : (
                     companyContacts.map((c, idx) => (
                       <tr key={c.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                        <td style={{ ...tdStyle, fontWeight: 500, color: '#1e293b' }}>{c.name}</td>
+                        <td style={{ ...tdStyle, fontWeight: 500, color: '#1e293b' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            {c.name}
+                            {c.is_primary && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#fef9c2', color: '#a16207', border: '1px solid #fde047' }}>
+                                <svg style={{ width: '9px', height: '9px' }} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td style={tdStyle}>
-                          <span style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{c.contact_role}</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                            {[...new Set([
+                              ...(Array.isArray(c.contact_role) ? c.contact_role : [c.contact_role].filter(Boolean)),
+                              ...Array.from(contactRolesMap[c.id] || []),
+                            ])].map((r) => (
+                              <span key={r} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{r}</span>
+                            ))}
+                          </div>
                         </td>
                         <td style={{ ...tdStyle, color: '#5a6577' }}>{c.email}</td>
                         <td style={{ ...tdStyle, color: '#5a6577' }}>{c.phone}</td>
                         <td style={tdStyle}>
-                          {c.contact_role === 'Client' && (
-                            c.vendor_enrollment === 'completed' ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 600, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
-                                <svg style={{ width: '10px', height: '10px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                                Completed
-                              </span>
-                            ) : (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #f9a825', padding: '2px 7px', borderRadius: '10px' }}>
-                                  <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                  Pending
-                                </span>
-                                <button
-                                  onClick={() => markEnrollmentComplete(c.id)}
-                                  title="Mark enrollment as completed"
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8694a7', padding: '1px', display: 'flex' }}
-                                >
-                                  <svg style={{ width: '13px', height: '13px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                </button>
-                              </span>
-                            )
-                          )}
-                        </td>
-                        <td style={tdStyle}>
                           {(contactJobsMap[c.id] || []).length === 0 ? (
                             <span style={{ fontSize: '10px', color: '#c8d1dc' }}>—</span>
                           ) : (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                              {(contactJobsMap[c.id] || []).map((job) => (
-                                <Link key={job.id} href={`/potential-projects/${job.id}`}
-                                  style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#e0e7ff', color: '#4338ca', textDecoration: 'none', whiteSpace: 'nowrap' }}
-                                  title={`${job.number} — ${job.name} (${job.stage})`}
-                                >
-                                  {job.number}
-                                </Link>
-                              ))}
-                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#4338ca' }}>
+                              {(contactJobsMap[c.id] || []).length}
+                            </span>
                           )}
                         </td>
                         <td style={tdStyle}>
@@ -353,10 +447,12 @@ export default function ClientDetailView({ companyName }) {
                 <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={inputStyle} placeholder="Full name" />
               </div>
               <div>
-                <label style={labelStyle}>Role</label>
-                <select value={form.contact_role} onChange={(e) => setForm((f) => ({ ...f, contact_role: e.target.value }))} style={inputStyle}>
-                  {CONTACT_ROLES.filter((r) => r !== 'ACI/API/POC' && r !== 'CommissionedSalesPerson').map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                <label style={labelStyle}>Roles</label>
+                <MultiRoleSelect
+                  value={form.contact_role || []}
+                  options={CONTACT_ROLES.filter((r) => r !== 'ACI/API/POC' && r !== 'CommissionedSalesPerson')}
+                  onChange={(roles) => setForm((f) => ({ ...f, contact_role: roles }))}
+                />
               </div>
               <div>
                 <label style={labelStyle}>Email</label>
@@ -365,6 +461,22 @@ export default function ClientDetailView({ companyName }) {
               <div>
                 <label style={labelStyle}>Phone</label>
                 <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={inputStyle} placeholder="(555) 555-5555" />
+              </div>
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '6px', background: form.is_primary ? '#eff6ff' : '#f8fafc', border: `1px solid ${form.is_primary ? '#93c5fd' : '#e8ecf1'}`, cursor: 'pointer' }}
+                onClick={() => setForm((f) => ({ ...f, is_primary: !f.is_primary }))}>
+                <div style={{
+                  width: '32px', height: '18px', borderRadius: '9px', flexShrink: 0, position: 'relative', transition: 'background 0.15s',
+                  background: form.is_primary ? '#2979ff' : '#c8d1dc',
+                }}>
+                  <div style={{
+                    position: 'absolute', top: '2px', left: form.is_primary ? '16px' : '2px',
+                    width: '14px', height: '14px', borderRadius: '50%', background: '#fff',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s',
+                  }} />
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 500, color: form.is_primary ? '#1d4ed8' : '#5a6577', userSelect: 'none' }}>
+                  Make primary contact for this company
+                </span>
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
@@ -375,6 +487,47 @@ export default function ClientDetailView({ companyName }) {
                 border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed',
               }}>
                 {editingId ? 'Update' : 'Add'} Contact
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Primary conflict confirmation */}
+      {primaryConflict && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', margin: '16px', overflow: 'hidden' }}>
+            <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '1px solid #e8ecf1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Override primary contact</span>
+              <button onClick={() => setPrimaryConflict(null)} style={{ background: 'none', border: 'none', color: '#8694a7', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div style={{ padding: '16px' }}>
+              <p style={{ fontSize: '12px', color: '#3a4a5c', margin: 0, lineHeight: 1.6 }}>
+                Are you sure you want to override <strong>'{primaryConflict.existingContact.name}'</strong> and make <strong>'{primaryConflict.pendingForm.name}'</strong> the new primary contact?
+              </p>
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #e8ecf1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              {!editingId && (
+                <button
+                  onClick={() => { const f = { ...primaryConflict.pendingForm, is_primary: false }; setPrimaryConflict(null); commitSave(f); }}
+                  style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#fff', background: '#5a6577', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Create as regular
+                </button>
+              )}
+              <button
+                onClick={() => setPrimaryConflict(null)}
+                style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { const f = primaryConflict.pendingForm; setPrimaryConflict(null); commitSave(f); }}
+                style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#e53935', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Override
               </button>
             </div>
           </div>

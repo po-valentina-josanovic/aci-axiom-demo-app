@@ -148,6 +148,7 @@ export default function CompaniesAndContacts({
         company_name: company,
         company_city: crm.company_city,
         company_state: crm.company_state,
+        is_primary: crm.is_primary || false,
         slot_id: slotId,
       };
       setDirty(true);
@@ -518,20 +519,40 @@ function NestedContactList({ company, role, contacts, crmPool, onAdd, onRemove, 
   const existingIds = new Set(contacts.map((c) => c.source_contact_id).filter(Boolean));
   const available = (crmPool || []).filter((c) => c.company_name === company && !existingIds.has(c.id));
 
+  const crmById = useMemo(() => {
+    const m = {};
+    (crmPool || []).forEach((c) => { m[c.id] = c; });
+    return m;
+  }, [crmPool]);
+
+  const sortedContacts = [...contacts].sort((a, b) => {
+    const pa = a.is_primary || crmById[a.source_contact_id]?.is_primary || false;
+    const pb = b.is_primary || crmById[b.source_contact_id]?.is_primary || false;
+    if (pa && !pb) return -1;
+    if (!pa && pb) return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
   return (
     <div style={{ marginTop: '6px' }}>
-      {contacts.length === 0 ? (
+      {sortedContacts.length === 0 ? (
         <p style={{ fontSize: '11px', color: '#8694a7', margin: '0 0 6px 0' }}>No contacts selected for this company.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '6px' }}>
-          {contacts.map((c) => (
+          {sortedContacts.map((c) => (
             <div
               key={c.id}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: '6px', padding: '5px 10px' }}
             >
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b' }}>{c.name}</span>
-                {c.email && <span style={{ fontSize: '11px', color: '#8694a7', marginLeft: '6px' }}>{c.email}</span>}
+                {c.is_primary && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#fef9c2', color: '#a16207', border: '1px solid #fde047' }}>
+                    <svg style={{ width: '9px', height: '9px' }} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                    Primary
+                  </span>
+                )}
+                {c.email && <span style={{ fontSize: '11px', color: '#8694a7' }}>{c.email}</span>}
               </div>
               {!isBidTracer && (
                 <button onClick={() => onRemove(c.id)} style={btnDanger} title="Remove">
@@ -544,49 +565,39 @@ function NestedContactList({ company, role, contacts, crmPool, onAdd, onRemove, 
           ))}
         </div>
       )}
-      {!isBidTracer && (
+      {!isBidTracer && available.length > 0 && (
         <>
           <button
             onClick={() => setPickerOpen((v) => !v)}
-            disabled={available.length === 0 && !pickerOpen}
-            style={{
-              ...btnSecondary, fontSize: '11px', padding: '4px 10px',
-              cursor: available.length === 0 && !pickerOpen ? 'not-allowed' : 'pointer',
-              opacity: available.length === 0 && !pickerOpen ? 0.5 : 1,
-            }}
+            style={{ ...btnSecondary, fontSize: '11px', padding: '4px 10px' }}
           >
             {pickerOpen ? 'Cancel' : `+ Add ${role} contact`}
           </button>
-          {available.length === 0 && !pickerOpen && (
-            <span style={{ fontSize: '10px', color: '#8694a7', marginLeft: '6px' }}>
-              No unassigned CRM contacts for {company}.
-            </span>
-          )}
           {pickerOpen && (
             <div style={{ marginTop: '6px', border: '1px solid #e8ecf1', borderRadius: '6px', background: '#fff', maxHeight: '180px', overflowY: 'auto' }}>
-              {available.length === 0 ? (
-                <div style={{ padding: '10px', fontSize: '11px', color: '#8694a7', textAlign: 'center' }}>
-                  No matching contacts in CRM.
-                </div>
-              ) : (
-                available.map((crm) => (
-                  <div
-                    key={crm.id}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f1f5f9' }}
-                  >
-                    <div>
-                      <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b' }}>{crm.name}</span>
-                      {crm.email && <span style={{ fontSize: '11px', color: '#8694a7', marginLeft: '6px' }}>{crm.email}</span>}
-                    </div>
-                    <button
-                      onClick={() => { onAdd(crm); setPickerOpen(false); }}
-                      style={{ ...btnPrimary, padding: '3px 10px', fontSize: '10px' }}
-                    >
-                      + Add
-                    </button>
+              {available.map((crm) => (
+                <div
+                  key={crm.id}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f1f5f9' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b' }}>{crm.name}</span>
+                    {crm.is_primary && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#fef9c2', color: '#a16207', border: '1px solid #fde047' }}>
+                        <svg style={{ width: '9px', height: '9px' }} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                        Primary
+                      </span>
+                    )}
+                    {crm.email && <span style={{ fontSize: '11px', color: '#8694a7' }}>{crm.email}</span>}
                   </div>
-                ))
-              )}
+                  <button
+                    onClick={() => { onAdd(crm); setPickerOpen(false); }}
+                    style={{ ...btnPrimary, padding: '3px 10px', fontSize: '10px' }}
+                  >
+                    + Add
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </>
