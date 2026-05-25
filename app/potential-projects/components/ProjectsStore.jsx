@@ -765,6 +765,7 @@ export function ProjectsProvider({ children }) {
     const company = {
       id: crypto.randomUUID(),
       company_name: data.company_name || '',
+      sort_name: data.sort_name || '',
       company_city: data.company_city || '',
       company_state: data.company_state || '',
       vendor_enrollment: data.vendor_enrollment || null,
