@@ -16,7 +16,7 @@ export default function ClientContactsView() {
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ company_name: '', company_city: '', company_state: '' });
+  const [form, setForm] = useState({ company_name: '', sort_name: '', company_city: '', company_state: '' });
   const [returnData, setReturnData] = useState(null);
 
   useEffect(() => {
@@ -94,11 +94,12 @@ export default function ClientContactsView() {
     if (!form.company_name.trim()) return;
     createClientCompany({
       company_name: form.company_name,
+      sort_name: form.sort_name,
       company_city: form.company_city,
       company_state: form.company_state,
     });
     setModalOpen(false);
-    setForm({ company_name: '', company_city: '', company_state: '' });
+    setForm({ company_name: '', sort_name: '', company_city: '', company_state: '' });
     router.push(`/client-contacts/${encodeURIComponent(form.company_name)}`);
   }
 
@@ -226,6 +227,10 @@ export default function ClientContactsView() {
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={labelStyle}>Company Name *</label>
                 <input type="text" value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} style={inputStyle} placeholder="Company name" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Sort Name</label>
+                <input type="text" value={form.sort_name} onChange={(e) => setForm((f) => ({ ...f, sort_name: e.target.value }))} style={inputStyle} placeholder="Name used for sorting/lookup" />
               </div>
               <div>
                 <label style={labelStyle}>City</label>

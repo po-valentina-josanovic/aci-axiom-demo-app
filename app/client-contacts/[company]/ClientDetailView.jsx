@@ -72,6 +72,7 @@ export default function ClientDetailView({ companyName }) {
   const companyRecord = clientCompanies.find((co) => co.company_name === companyName);
   const companyCity = companyRecord?.company_city || companyContacts[0]?.company_city || '';
   const companyState = companyRecord?.company_state || companyContacts[0]?.company_state || '';
+  const companySortName = companyRecord?.sort_name || '';
 
   // Map contact id -> projects
   const contactJobsMap = useMemo(() => {
@@ -292,6 +293,10 @@ export default function ClientDetailView({ companyName }) {
             <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{companyProjects.length}</div>
               <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>Linked Projects</div>
+            </div>
+            <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{companySortName || '—'}</div>
+              <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>Sort Name</div>
             </div>
             <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{companyCity || '—'}</div>
