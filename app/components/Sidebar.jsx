@@ -81,10 +81,18 @@ const MENU = [
     label: 'Master Manpower',
     icon: 'users',
     children: [
-      { label: 'Awarded Manpower', icon: 'chart', href: '/awarded-manpower' },
+      { label: 'PreCon', icon: 'clipboard', href: '/pre-con' },
+      { label: 'Awarded Manpower', icon: 'chart' },
     ],
   },
-  { label: 'Revenue Forecasts', icon: 'calendar', children: [] },
+  {
+    label: 'Revenue Forecasts',
+    icon: 'calendar',
+    children: [
+      { label: 'Company Forecast', icon: 'chart' },
+      { label: 'Division Forecast', icon: 'pie-chart', href: '/revenue-forecasts/division-forecast' },
+    ],
+  },
 ];
 
 function MenuItem({ item, depth = 0, pathname }) {
