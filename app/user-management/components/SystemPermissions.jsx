@@ -18,42 +18,41 @@ const SECTIONS = [
   {
     name: 'Dashboard Analytics',
     rows: [
-      { name: 'POC Analytics', perms: [W,  R,  DR, R,  W,  R,  X,  X,  R,  X,  X,  DR, R,  R ] },
+      { name: 'POC Analytics', perms: [W, R, DR, R, W, R, X, X, R, X, X, DR, R, R] },
     ],
   },
   {
     name: 'Master Manpower',
     rows: [
-      { name: 'PreCon',                     perms: [W,  W,  W,  R,  W,  R,  R,  DR, R,  R,  W,  W,  W,  R ] },
-      { name: 'Awarded Manpower',           perms: [W,  R,  W,  R,  W,  R,  R,  DR, R,  R,  R,  R,  R,  R ] },
-      { name: 'Awarded - Shared Resources', perms: [W,  R,  W,  R,  W,  R,  R,  DR, R,  R,  R,  R,  R,  R ], indent: true },
-      { name: 'Awarded - Goals',            perms: [W,  R,  W,  R,  W,  R,  R,  DR, R,  R,  R,  R,  R,  R ], indent: true },
-      { name: 'Awarded - Temp Labor',       perms: [W,  R,  W,  R,  W,  R,  R,  DR, R,  R,  R,  R,  R,  R ], indent: true },
-      { name: 'Graph By Trade',             perms: [W,  W,  W,  R,  W,  R,  R,  DR, R,  R,  W,  W,  R,  R ] },
-      { name: 'Graph By Job',               perms: [W,  W,  W,  R,  W,  R,  R,  DR, R,  R,  W,  W,  R,  R ] },
+      { name: 'PreCon',                     perms: [W, W, W, R, W, R, R, DR, R, R, W, W, W, R] },
+      { name: 'Awarded Manpower',           perms: [W, R, W, R, W, R, R, DR, R, R, R, R, R, R] },
+      { name: 'Awarded - Shared Resources', perms: [W, R, W, R, W, R, R, DR, R, R, R, R, R, R], indent: true },
+      { name: 'Awarded - Goals',            perms: [W, R, W, R, W, R, R, DR, R, R, R, R, R, R], indent: true },
+      { name: 'Awarded - Temp Labor',       perms: [W, R, W, R, W, R, R, DR, R, R, R, R, R, R], indent: true },
+      { name: 'Graph By Trade',             perms: [W, W, W, R, W, R, R, DR, R, R, W, W, R, R] },
+      { name: 'Graph By Job',               perms: [W, W, W, R, W, R, R, DR, R, R, W, W, R, R] },
     ],
   },
   {
     name: 'Revenue Forecast',
     rows: [
-      { name: 'Company Forecasts',  perms: [W,  X,  X,  W,  X,  X,  X,  X,  R,  X,  X,  X,  R,  X ] },
-      { name: 'Division Forecasts', perms: [W,  DR, DR, W,  W,  DR, X,  X,  R,  DR, R,  X,  R,  DW] },
+      { name: 'Company Forecasts',  perms: [W, X, X, W, X, X, X, X, R, X, X, X, R, X] },
+      { name: 'Division Forecasts', perms: [W, DR, DR, W, W, DR, X, X, R, DR, R, X, R, DW] },
     ],
   },
   {
     name: 'Business Dev',
     rows: [
-      { name: 'Bid Summary Warehouse', perms: [W,  W,  R,  W,  W,  W,  R,  X,  R,  X,  R,  W,  R,  R] },
+      { name: 'Bid Summary Warehouse', perms: [W, W, R, W, W, W, R, X, R, X, R, W, R, R] },
       { name: 'Dashboard', type: 'subsection' },
       { name: 'Inputs', type: 'subsection' },
-      { name: 'Flash Monthly Entry',   perms: [W,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X], subrow: true },
-      { name: 'Div Sales Goals Entry', perms: [W,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X,  X], subrow: true },
+      { name: 'Flash Monthly Entry',   perms: [W, X, X, X, X, X, X, X, X, X, X, X, X, X], subrow: true },
+      { name: 'Div Sales Goals Entry', perms: [W, X, X, X, X, X, X, X, X, X, X, X, X, X], subrow: true },
       { name: 'Reporting', type: 'subsection' },
     ],
   },
 ];
 
-// ---------- icons ----------
 const IC = '#1a4d8f';
 
 function IcoWrite() {
@@ -127,7 +126,7 @@ function LegendItem({ icon, label }) {
 
 export default function SystemPermissions() {
   const [collapsed, setCollapsed] = useState({});
-  const [search, setSearch]       = useState('');
+  const [search, setSearch] = useState('');
 
   const toggleSection = (name) => setCollapsed(p => ({ ...p, [name]: !p[name] }));
 

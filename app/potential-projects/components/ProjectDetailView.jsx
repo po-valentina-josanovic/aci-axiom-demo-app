@@ -233,7 +233,7 @@ export default function ProjectDetailView({ projectId }) {
   const [teamRoleToAdd, setTeamRoleToAdd] = useState('ACI/API/POC');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
   // Trades
-  const [tradeForm, setTradeForm] = useState({ estimator: '', name: '', hours: '', cost: '' });
+  const [tradeForm, setTradeForm] = useState({ estimator: '', name: '', beginDate: '', endDate: '', hours: '', cost: '' });
   const [competitorForm, setCompetitorForm] = useState({ name: '', bid_amount: '' });
 
   // Year Burns
@@ -527,12 +527,13 @@ export default function ProjectDetailView({ projectId }) {
 
   // --- Estimators & Trades ---
   function addTrade() {
-    if (!tradeForm.estimator) return;
+    const datesRequired = !!tradeForm.name;
+    if (!tradeForm.estimator || (datesRequired && (!tradeForm.beginDate || !tradeForm.endDate))) return;
     const trade = { id: crypto.randomUUID(), ...tradeForm };
     const trades = [...(form.bid_details?.trades || []), trade];
     setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, trades } }));
     setDirty(true);
-    setTradeForm({ estimator: '', name: '', hours: '', cost: '' });
+    setTradeForm({ estimator: '', name: '', beginDate: '', endDate: '', hours: '', cost: '' });
   }
 
   function removeTrade(id) {
@@ -1419,6 +1420,8 @@ export default function ProjectDetailView({ projectId }) {
                       <tr>
                         <th style={subTableThStyle}>Estimator</th>
                         <th style={subTableThStyle}>Trade</th>
+                        <th style={subTableThStyle}>Beginning Date</th>
+                        <th style={subTableThStyle}>End Date</th>
                         <th style={{ ...subTableThStyle, textAlign: 'right' }}>Hours</th>
                         <th style={{ ...subTableThStyle, textAlign: 'right' }}>Cost ($)</th>
                         <th style={{ ...subTableThStyle, width: '36px' }}></th>
@@ -1429,6 +1432,8 @@ export default function ProjectDetailView({ projectId }) {
                         <tr key={t.id} style={{ borderTop: '1px solid #e8ecf1' }}>
                           <td style={{ padding: '7px 12px', fontWeight: 500, color: '#1e293b' }}>{t.estimator || '—'}</td>
                           <td style={{ padding: '7px 12px', color: t.name ? '#3a4a5c' : '#8694a7' }}>{t.name || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: t.beginDate ? '#3a4a5c' : '#8694a7' }}>{t.beginDate || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: t.endDate ? '#3a4a5c' : '#8694a7' }}>{t.endDate || '—'}</td>
                           <td style={{ padding: '7px 12px', textAlign: 'right' }}>{t.hours ? formatNumberCommas(t.hours) : ''}</td>
                           <td style={{ padding: '7px 12px', textAlign: 'right' }}>{t.cost ? formatCurrency(t.cost) : ''}</td>
                           <td style={{ padding: '7px 6px' }}>
@@ -1461,6 +1466,16 @@ export default function ProjectDetailView({ projectId }) {
                     </select>
                   </div>
                   <div>
+                    <label style={{ fontSize: '10px', color: '#b0b8c4', marginBottom: '2px', fontStyle: 'italic', display: 'block' }}>(phase 2 item)</label>
+                    <label style={{ fontSize: '10px', color: '#8694a7', marginBottom: '2px', display: 'block' }}>Beginning Date {tradeForm.name && <span style={{ color: '#d32f2f' }}>*</span>}</label>
+                    <input type="date" value={tradeForm.beginDate} onChange={(e) => setTradeForm((f) => ({ ...f, beginDate: e.target.value }))} style={{ ...inputStyle, width: '130px' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', color: '#b0b8c4', marginBottom: '2px', fontStyle: 'italic', display: 'block' }}>(phase 2 item)</label>
+                    <label style={{ fontSize: '10px', color: '#8694a7', marginBottom: '2px', display: 'block' }}>End Date {tradeForm.name && <span style={{ color: '#d32f2f' }}>*</span>}</label>
+                    <input type="date" value={tradeForm.endDate} onChange={(e) => setTradeForm((f) => ({ ...f, endDate: e.target.value }))} style={{ ...inputStyle, width: '130px' }} />
+                  </div>
+                  <div>
                     <label style={{ fontSize: '10px', color: '#8694a7', marginBottom: '2px' }}>Hours</label>
                     <input type="number" value={tradeForm.hours} onChange={(e) => setTradeForm((f) => ({ ...f, hours: e.target.value }))} style={{ ...inputStyle, width: '80px' }} placeholder="0" />
                   </div>
@@ -1470,8 +1485,8 @@ export default function ProjectDetailView({ projectId }) {
                   </div>
                   <button
                     onClick={addTrade}
-                    disabled={!tradeForm.estimator}
-                    style={{ ...btnPrimary, opacity: tradeForm.estimator ? 1 : 0.5, cursor: tradeForm.estimator ? 'pointer' : 'not-allowed' }}
+                    disabled={!tradeForm.estimator || (!!tradeForm.name && (!tradeForm.beginDate || !tradeForm.endDate))}
+                    style={{ ...btnPrimary, opacity: (!tradeForm.estimator || (!!tradeForm.name && (!tradeForm.beginDate || !tradeForm.endDate))) ? 0.5 : 1, cursor: (!tradeForm.estimator || (!!tradeForm.name && (!tradeForm.beginDate || !tradeForm.endDate))) ? 'not-allowed' : 'pointer' }}
                   >
                     Add
                   </button>

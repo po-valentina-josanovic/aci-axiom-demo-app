@@ -17,6 +17,7 @@ export default function TopNav() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
   return (
     <nav
       className="flex items-center justify-between px-3 text-white"
@@ -94,7 +95,7 @@ export default function TopNav() {
             <div style={{
               position: 'absolute', top: 'calc(100% + 6px)', right: 0,
               background: '#fff', border: '1px solid #d9dfe7', borderRadius: '7px',
-              boxShadow: '0 6px 20px rgba(0,0,0,0.14)', minWidth: '160px', zIndex: 999, overflow: 'hidden',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.14)', minWidth: '180px', zIndex: 999, overflow: 'hidden',
             }}>
               <button
                 onClick={() => { setSettingsOpen(false); router.push('/user-management'); }}
@@ -107,6 +108,18 @@ export default function TopNav() {
                 onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
               >
                 User Management
+              </button>
+              <button
+                onClick={() => { setSettingsOpen(false); router.push('/global-configuration'); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '9px 14px', fontSize: '13px', color: '#1e293b',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                Global Configuration
               </button>
             </div>
           )}
