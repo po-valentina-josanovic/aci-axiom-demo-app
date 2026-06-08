@@ -13,10 +13,11 @@ const INITIAL_JOBS = [
     name: 'Richmond Convention Center Expansion',
     type: 'precon',
     cost: '$24,300,000',
+    workweekHours: 40,
     shopData: {
-      Plumbing:       { hours: 8400,  manDays: 1050, months: 18, beginning: '03-2026', end: '08-2027' },
-      Pipe:           { hours: 12000, manDays: 1500, months: 18, beginning: '03-2026', end: '08-2027' },
-      Electrical:     { hours: 11200, manDays: 1400, months: 18, beginning: '03-2026', end: '08-2027' },
+      Plumbing:       { hours: 8400,  beginning: '03-2026', end: '08-2027' },
+      Pipe:           { hours: 12000, beginning: '03-2026', end: '08-2027' },
+      Electrical:     { hours: 11200, beginning: '03-2026', end: '08-2027' },
     },
   },
   {
@@ -24,9 +25,10 @@ const INITIAL_JOBS = [
     name: 'Norfolk Naval Station HVAC Upgrade',
     type: 'precon',
     cost: '$9,750,000',
+    workweekHours: 40,
     shopData: {
-      'Sheet Metal':  { hours: 5600,  manDays: 700,  months: 14, beginning: '07-2026', end: '08-2027' },
-      Electrical:     { hours: 3200,  manDays: 400,  months: 14, beginning: '07-2026', end: '08-2027' },
+      'Sheet Metal':  { hours: 5600,  beginning: '07-2026', end: '08-2027' },
+      Electrical:     { hours: 3200,  beginning: '07-2026', end: '08-2027' },
     },
   },
   {
@@ -34,10 +36,11 @@ const INITIAL_JOBS = [
     name: 'Daleville MOB',
     type: 'regular',
     cost: '$7,000,000',
+    workweekHours: 40,
     shopData: {
-      Plumbing:       { hours: 6000,  manDays: 750,  months: 13, beginning: '06-2026', end: '06-2027' },
-      'Sheet Metal':  { hours: 6000,  manDays: 750,  months: 13, beginning: '06-2026', end: '06-2027' },
-      Electrical:     { hours: 7500,  manDays: 938,  months: 13, beginning: '06-2026', end: '06-2027' },
+      Plumbing:       { hours: 6000,  beginning: '06-2026', end: '06-2027' },
+      'Sheet Metal':  { hours: 6000,  beginning: '06-2026', end: '06-2027' },
+      Electrical:     { hours: 7500,  beginning: '06-2026', end: '06-2027' },
     },
   },
   {
@@ -45,10 +48,11 @@ const INITIAL_JOBS = [
     name: 'VT Chiller Plant',
     type: 'regular',
     cost: '$18,549,901',
+    workweekHours: 40,
     shopData: {
-      Pipe:           { hours: 14702, manDays: 1838, months: 22, beginning: '06-2026', end: '03-2028' },
-      'Sheet Metal':  { hours: 549,   manDays: 69,   months: 22, beginning: '06-2026', end: '03-2028' },
-      Electrical:     { hours: 15000, manDays: 1875, months: 22, beginning: '06-2026', end: '03-2028' },
+      Pipe:           { hours: 14702, beginning: '06-2026', end: '03-2028' },
+      'Sheet Metal':  { hours: 549,   beginning: '06-2026', end: '03-2028' },
+      Electrical:     { hours: 15000, beginning: '06-2026', end: '03-2028' },
     },
   },
 ];
@@ -115,13 +119,105 @@ function TrashIcon({ size = 14 }) {
 //  2-7: ProjectName (colspan 6) → ManDays / Months / Beginning / End / Distribution / (empty actions hdr)
 //  8+: Year groups  → Month names → 0s
 
-function PreConJobSection({ job }) {
+function calcMonths(beg, end) {
+  if (!beg || !end) return null;
+  const [bm, by] = beg.split('-').map(Number);
+  const [em, ey] = end.split('-').map(Number);
+  if (!bm || !by || !em || !ey) return null;
+  const n = (ey - by) * 12 + (em - bm) + 1;
+  return n > 0 ? n : null;
+}
+
+function EditJobModal({ job, onClose, onSave }) {
+  const [name, setName] = useState(job.name);
+  const [workweekHours, setWorkweekHours] = useState(job.workweekHours ?? 40);
+
+  const fieldStyle = { width: '100%', padding: '9px 12px', fontSize: '13px', border: '1px solid #c8d1dc', borderRadius: '6px', color: '#1e293b', outline: 'none', boxSizing: 'border-box', background: '#fff' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#fff', borderRadius: '10px', width: '480px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px' }}>
+          <span style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Edit Job Details</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5a6577', display: 'flex', alignItems: 'center', padding: '2px' }}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {/* Body */}
+        <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>Job Name</div>
+            <input value={name} onChange={e => setName(e.target.value)} style={fieldStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginBottom: '10px' }}>Workweek hours:</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              {WORKWEEK_OPTIONS.map(opt => (
+                <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#1e293b', cursor: 'pointer', userSelect: 'none' }}>
+                  <input type="radio" name="edit-workweek" checked={workweekHours === opt} onChange={() => setWorkweekHours(opt)}
+                    style={{ width: '15px', height: '15px', accentColor: '#2979ff', margin: 0, cursor: 'pointer' }} />
+                  {opt}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+            <button onClick={onClose} style={{ padding: '8px 22px', fontSize: '13px', fontWeight: 500, color: '#1e293b', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>
+              Cancel
+            </button>
+            <button onClick={() => { onSave({ name: name.trim() || job.name, workweekHours }); onClose(); }}
+              style={{ padding: '8px 22px', fontSize: '13px', fontWeight: 600, color: '#fff', background: '#1a5276', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreConJobSection({ job: initialJob, onUpdate }) {
+  const [job, setJob] = useState(initialJob);
   const [mode, setMode] = useState('budget');
+  const [showEdit, setShowEdit] = useState(false);
+  const hoursPerDay = (job.workweekHours ?? 40) / 5;
+
+  function handleSaveEdit({ name, workweekHours }) {
+    const updated = { ...job, name, workweekHours };
+    setJob(updated);
+    onUpdate?.(updated);
+  }
+
+  const [shopRows, setShopRows] = useState(() =>
+    SHOPS.reduce((acc, shop) => {
+      const d = job.shopData[shop];
+      acc[shop] = d ? { hours: d.hours, beginning: d.beginning, end: d.end } : { hours: '', beginning: '', end: '' };
+      return acc;
+    }, {})
+  );
+
+  function updateRow(shop, field, value) {
+    setShopRows(prev => ({ ...prev, [shop]: { ...prev[shop], [field]: value } }));
+  }
+
+  function deriveManDays(hours) {
+    const h = parseFloat(String(hours).replace(/,/g, ''));
+    return h > 0 ? Math.round(h / hoursPerDay) : null;
+  }
 
   const totals = SHOPS.reduce(
     (acc, s) => {
-      const d = job.shopData[s];
-      if (d) { acc.hours += d.hours; acc.manDays += d.manDays; acc.months += d.months; }
+      const row = shopRows[s];
+      const h = parseFloat(String(row.hours).replace(/,/g, '')) || 0;
+      const md = h > 0 ? Math.round(h / hoursPerDay) : 0;
+      const mo = calcMonths(row.beginning, row.end) ?? 0;
+      acc.hours += h;
+      acc.manDays += md;
+      acc.months += mo;
       return acc;
     },
     { hours: 0, manDays: 0, months: 0 },
@@ -206,7 +302,7 @@ function PreConJobSection({ job }) {
                       Manual
                     </span>
                   )}
-                  <button style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center' }}>
+                  <button onClick={() => setShowEdit(true)} style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center' }}>
                     <PencilIcon size={13} color="#fff" />
                   </button>
                 </div>
@@ -248,18 +344,30 @@ function PreConJobSection({ job }) {
           <tbody>
             {/* ── Data rows: Trade | values | actions | 0s ── */}
             {SHOPS.map((shop, idx) => {
-              const d = job.shopData[shop];
+              const row = shopRows[shop];
+              const hasData = !!row.hours || !!row.beginning || !!row.end;
+              const manDays = deriveManDays(row.hours);
+              const months = calcMonths(row.beginning, row.end);
+              const calcCellStyle = { ...tdBase, background: '#f8fafc', color: '#475569', fontStyle: 'italic' };
               return (
                 <tr key={shop} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                   {/* Col 0: trade name */}
                   <td style={{ ...tdBase, textAlign: 'left', fontWeight: 500 }}>{shop}</td>
-                  {d ? (
+                  {hasData ? (
                     <>
-                      <td style={tdInput}><input style={inputStyle} defaultValue={d.hours.toLocaleString()} /></td>
-                      <td style={tdInput}><input style={inputStyle} defaultValue={d.manDays.toLocaleString()} /></td>
-                      <td style={tdInput}><input style={inputStyle} defaultValue={d.months} /></td>
-                      <td style={tdInput}><input style={inputStyle} defaultValue={d.beginning} /></td>
-                      <td style={tdInput}><input style={inputStyle} defaultValue={d.end} /></td>
+                      <td style={tdInput}>
+                        <input style={inputStyle} value={row.hours} onChange={e => updateRow(shop, 'hours', e.target.value)} />
+                      </td>
+                      {/* Man Days — calculated */}
+                      <td style={calcCellStyle}>{manDays != null ? manDays.toLocaleString() : ''}</td>
+                      {/* Months — calculated */}
+                      <td style={calcCellStyle}>{months != null ? months : ''}</td>
+                      <td style={tdInput}>
+                        <input style={inputStyle} value={row.beginning} onChange={e => updateRow(shop, 'beginning', e.target.value)} />
+                      </td>
+                      <td style={tdInput}>
+                        <input style={inputStyle} value={row.end} onChange={e => updateRow(shop, 'end', e.target.value)} />
+                      </td>
                       {/* Col 6: Distribution — edit button */}
                       <td style={{ ...tdBase, padding: '2px 5px' }}>
                         <button style={{ background: '#2979ff', border: 'none', borderRadius: '3px', color: '#fff', cursor: 'pointer', padding: '3px 5px', display: 'flex', alignItems: 'center', margin: '0 auto' }}>
@@ -275,11 +383,19 @@ function PreConJobSection({ job }) {
                     </>
                   ) : (
                     <>
-                      <td style={tdInput}><input style={inputStyle} /></td>
-                      <td style={tdInput}><input style={inputStyle} defaultValue="0" /></td>
-                      <td style={tdInput}><input style={inputStyle} defaultValue="0" /></td>
-                      <td style={tdInput}><input style={inputStyle} /></td>
-                      <td style={tdInput}><input style={inputStyle} /></td>
+                      <td style={tdInput}>
+                        <input style={inputStyle} value={row.hours} onChange={e => updateRow(shop, 'hours', e.target.value)} />
+                      </td>
+                      {/* Man Days — calculated, empty until hours entered */}
+                      <td style={calcCellStyle}></td>
+                      {/* Months — calculated, empty until dates entered */}
+                      <td style={calcCellStyle}></td>
+                      <td style={tdInput}>
+                        <input style={inputStyle} value={row.beginning} onChange={e => updateRow(shop, 'beginning', e.target.value)} />
+                      </td>
+                      <td style={tdInput}>
+                        <input style={inputStyle} value={row.end} onChange={e => updateRow(shop, 'end', e.target.value)} />
+                      </td>
                       {/* Col 6: Distribution — + button */}
                       <td style={{ ...tdBase, padding: '2px 5px' }}>
                         <button style={{ background: '#fff', border: '1px solid #c8d1dc', borderRadius: '3px', color: '#5a6577', cursor: 'pointer', padding: '1px 10px', fontSize: '15px', lineHeight: '1.2' }}>
@@ -330,6 +446,7 @@ function PreConJobSection({ job }) {
           See Notes (0)
         </button>
       </div>
+      {showEdit && <EditJobModal job={job} onClose={() => setShowEdit(false)} onSave={handleSaveEdit} />}
     </div>
   );
 }
