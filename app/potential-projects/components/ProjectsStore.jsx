@@ -469,6 +469,22 @@ function saveCompetitors(competitors) {
   localStorage.setItem('master_competitors', JSON.stringify(competitors));
 }
 
+// --- Client Companies (CRM) ---
+function loadClientCompanies() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('master_client_companies');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveClientCompanies(companies) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('master_client_companies', JSON.stringify(companies));
+}
+
 // --- Master Client Contacts (CRM) ---
 const SEED_CLIENT_CONTACTS = [
   { id: 'c1', name: 'Dr. Alan Reed', contact_role: 'Client', company_name: 'Metro Health', company_city: 'Columbus', company_state: 'OH', email: 'areed@metrohealth.org', phone: '(614) 555-0120', created_at: '2026-03-08T10:00:00.000Z' },
@@ -516,6 +532,7 @@ export function ProjectsProvider({ children }) {
   const [companies, setCompanies] = useState([]);
   const [competitors, setCompetitors] = useState([]);
   const [clientContacts, setClientContacts] = useState([]);
+  const [clientCompanies, setClientCompanies] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -523,6 +540,7 @@ export function ProjectsProvider({ children }) {
     setCompanies(loadCompanies());
     setCompetitors(loadCompetitors());
     setClientContacts(loadClientContacts());
+    setClientCompanies(loadClientCompanies());
     setLoaded(true);
   }, []);
 
@@ -541,6 +559,10 @@ export function ProjectsProvider({ children }) {
   useEffect(() => {
     if (loaded) saveClientContacts(clientContacts);
   }, [clientContacts, loaded]);
+
+  useEffect(() => {
+    if (loaded) saveClientCompanies(clientCompanies);
+  }, [clientCompanies, loaded]);
 
   // --- Project CRUD ---
   const createProject = useCallback((data) => {
@@ -748,6 +770,27 @@ export function ProjectsProvider({ children }) {
     setCompetitors((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // --- Client Companies CRUD (CRM) ---
+  const createClientCompany = useCallback((data) => {
+    const company = {
+      id: crypto.randomUUID(),
+      company_name: data.company_name || '',
+      sort_name: data.sort_name || '',
+      company_city: data.company_city || '',
+      company_state: data.company_state || '',
+      vendor_enrollment: data.vendor_enrollment || null,
+      created_at: new Date().toISOString(),
+    };
+    setClientCompanies((prev) => [company, ...prev]);
+    return company;
+  }, []);
+
+  const updateClientCompany = useCallback((id, updates) => {
+    setClientCompanies((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+    );
+  }, []);
+
   // --- Client Contacts CRUD (CRM) ---
   const createClientContact = useCallback((data) => {
     const now = new Date().toISOString();
@@ -812,6 +855,9 @@ export function ProjectsProvider({ children }) {
         updateClientContact,
         deleteClientContact,
         setContactAsPrimary,
+        clientCompanies,
+        createClientCompany,
+        updateClientCompany,
         // Constants
         STAGES,
         PROJECT_TYPES,

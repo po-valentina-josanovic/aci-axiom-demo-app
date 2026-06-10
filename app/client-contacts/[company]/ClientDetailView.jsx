@@ -116,7 +116,7 @@ function PrimaryToggle({ value, onChange }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 export default function ClientDetailView({ companyName }) {
-  const { clientContacts, createClientContact, updateClientContact, deleteClientContact, setContactAsPrimary, CONTACT_ROLES, projects } = useProjects();
+  const { clientContacts, createClientContact, updateClientContact, deleteClientContact, setContactAsPrimary, clientCompanies, createClientCompany, updateClientCompany, CONTACT_ROLES, projects } = useProjects();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -135,8 +135,10 @@ export default function ClientDetailView({ companyName }) {
       }),
   [clientContacts, companyName]);
 
-  const companyCity = companyContacts[0]?.company_city || '';
-  const companyState = companyContacts[0]?.company_state || '';
+  const companyRecord = (clientCompanies || []).find((co) => co.company_name === companyName);
+  const companyCity = companyRecord?.company_city || companyContacts[0]?.company_city || '';
+  const companyState = companyRecord?.company_state || companyContacts[0]?.company_state || '';
+  const enrollmentStatus = companyRecord?.vendor_enrollment || null;
 
   const contactJobsMap = useMemo(() => {
     const map = {};
@@ -207,18 +209,30 @@ export default function ClientDetailView({ companyName }) {
         name, email: form.email, phone: form.phone,
         roles: form.roles, contact_role: firstRole,
         company_name: companyName, company_city: companyCity, company_state: companyState,
-        vendor_enrollment: isClient ? 'pending' : null,
       });
       if (setPrimary && created?.id) setContactAsPrimary(created.id);
-      if (isClient) setEnrollmentAlert(name);
+      if (isClient) {
+        const hasExistingClient = companyContacts.some((c) => {
+          const roles = Array.isArray(c.contact_role) ? c.contact_role : [c.contact_role];
+          return roles.includes('Client');
+        });
+        if (!hasExistingClient) {
+          if (companyRecord) {
+            updateClientCompany(companyRecord.id, { vendor_enrollment: 'pending' });
+          } else {
+            createClientCompany({ company_name: companyName, company_city: companyCity, company_state: companyState, vendor_enrollment: 'pending' });
+          }
+          setEnrollmentAlert(name);
+        }
+      }
     }
     setModalOpen(false);
     setEditingId(null);
     setOverrideConfirm(null);
   }
 
-  function markEnrollmentComplete(contactId) {
-    updateClientContact(contactId, { vendor_enrollment: 'completed' });
+  function markCompanyEnrollmentComplete() {
+    if (companyRecord) updateClientCompany(companyRecord.id, { vendor_enrollment: 'completed' });
   }
 
   const STAGE_COLORS = {
@@ -257,6 +271,28 @@ export default function ClientDetailView({ companyName }) {
                 {companyCity && (
                   <span style={{ fontSize: '12px', color: '#8694a7' }}>
                     {companyCity}{companyState ? `, ${companyState}` : ''}
+                  </span>
+                )}
+                {enrollmentStatus === 'pending' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #f9a825', padding: '2px 8px', borderRadius: '10px' }}>
+                      <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Vendor Enrollment Pending
+                    </span>
+                    <button
+                      onClick={markCompanyEnrollmentComplete}
+                      title="Mark vendor enrollment as completed"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: '#15803d', background: '#dcfce7', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '10px', cursor: 'pointer' }}
+                    >
+                      <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      Mark Complete
+                    </button>
+                  </span>
+                )}
+                {enrollmentStatus === 'completed' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 600, color: '#15803d', background: '#dcfce7', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '10px' }}>
+                    <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    Vendor Enrolled
                   </span>
                 )}
               </div>
@@ -342,7 +378,6 @@ export default function ClientDetailView({ companyName }) {
                     <th style={thStyle}>Role</th>
                     <th style={thStyle}>Email</th>
                     <th style={thStyle}>Phone</th>
-                    <th style={thStyle}>Vendor Enrollment</th>
                     <th style={thStyle}>Projects</th>
                     <th style={{ ...thStyle, width: '60px' }}></th>
                   </tr>
@@ -350,7 +385,7 @@ export default function ClientDetailView({ companyName }) {
                 <tbody>
                   {companyContacts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
+                      <td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
                         No contacts yet. Click "Add Contact" to create one.
                       </td>
                     </tr>
@@ -381,26 +416,6 @@ export default function ClientDetailView({ companyName }) {
                         </td>
                         <td style={{ ...tdStyle, color: '#5a6577' }}>{c.email}</td>
                         <td style={{ ...tdStyle, color: '#5a6577' }}>{c.phone}</td>
-                        <td style={tdStyle}>
-                          {getRoles(c).includes('Client') && (
-                            c.vendor_enrollment === 'completed' ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 600, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
-                                <svg style={{ width: '10px', height: '10px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                                Completed
-                              </span>
-                            ) : (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #f9a825', padding: '2px 7px', borderRadius: '10px' }}>
-                                  <svg style={{ width: '9px', height: '9px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                  Pending
-                                </span>
-                                <button onClick={() => markEnrollmentComplete(c.id)} title="Mark enrollment as completed" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8694a7', padding: '1px', display: 'flex' }}>
-                                  <svg style={{ width: '13px', height: '13px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                </button>
-                              </span>
-                            )
-                          )}
-                        </td>
                         <td style={tdStyle}>
                           {(contactJobsMap[c.id] || []).length === 0 ? (
                             <span style={{ fontSize: '10px', color: '#c8d1dc' }}>—</span>
