@@ -475,7 +475,11 @@ const SEED_CLIENT_CONTACTS = [
   { id: 'c2', name: 'Maria Torres', contact_role: 'Client', company_name: 'Lakeview ISD', company_city: 'Cleveland', company_state: 'OH', email: 'mtorres@lakeviewisd.edu', phone: '(216) 555-0340', created_at: '2026-03-20T09:00:00.000Z' },
   { id: 'c3', name: 'Jeff Conlin', contact_role: 'Architect', company_name: 'Conlin Architects', company_city: 'Cleveland', company_state: 'OH', email: 'jconlin@conlinarch.com', phone: '(216) 555-0188', created_at: '2026-03-20T09:05:00.000Z' },
   { id: 'c4', name: 'Bill Hargrove', contact_role: 'Client', company_name: 'Apex Manufacturing', company_city: 'Akron', company_state: 'OH', email: 'bhargrove@apexmfg.com', phone: '(330) 555-0275', created_at: '2026-01-12T08:00:00.000Z' },
-  { id: 'c5', name: 'Karen Walsh', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'kwalsh@riverfrontdev.com', phone: '(513) 555-0410', created_at: '2026-04-01T11:00:00.000Z' },
+  { id: 'c5', name: 'Karen Walsh', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'kwalsh@riverfrontdev.com', phone: '(513) 555-0410', is_primary: true, created_at: '2026-04-01T11:00:00.000Z' },
+  { id: 'c5b', name: 'Derek Holloway', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'dholloway@riverfrontdev.com', phone: '(513) 555-0421', created_at: '2026-04-01T11:05:00.000Z' },
+  { id: 'c5c', name: 'Samantha Price', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'sprice@riverfrontdev.com', phone: '(513) 555-0433', created_at: '2026-04-02T08:30:00.000Z' },
+  { id: 'c5d', name: 'Marcus Elliot', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'melliot@riverfrontdev.com', phone: '(513) 555-0447', created_at: '2026-04-02T09:00:00.000Z' },
+  { id: 'c5e', name: 'Jillian Tran', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'jtran@riverfrontdev.com', phone: '(513) 555-0458', created_at: '2026-04-03T10:15:00.000Z' },
   { id: 'c6', name: 'Thomas Nguyen', contact_role: 'Client', company_name: 'GSA Region 5', company_city: 'St. Paul', company_state: 'MN', email: 'tnguyen@gsa.gov', phone: '(651) 555-0190', created_at: '2026-02-15T14:00:00.000Z' },
   { id: 'c7', name: 'Patricia Holmes', contact_role: 'Engineer', company_name: 'Holmes Fire Engineering', company_city: 'St. Paul', company_state: 'MN', email: 'pholmes@holmesfe.com', phone: '(651) 555-0233', created_at: '2026-02-15T14:10:00.000Z' },
   { id: 'c-bt1', name: 'Steve Morton', contact_role: 'Client', company_name: 'Grandview Properties', company_city: 'Columbus', company_state: 'OH', email: 'smorton@grandviewprop.com', phone: '(614) 555-0455', created_at: '2026-02-18T08:00:00.000Z' },
@@ -489,7 +493,12 @@ function loadClientContacts() {
     const stored = localStorage.getItem('master_client_contacts');
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (parsed.length > 0) return parsed;
+      if (parsed.length > 0) {
+        // Merge any seed entries that don't already exist in stored data.
+        const storedIds = new Set(parsed.map((c) => c.id));
+        const missing = SEED_CLIENT_CONTACTS.filter((c) => !storedIds.has(c.id));
+        return missing.length > 0 ? [...parsed, ...missing] : parsed;
+      }
     }
     return [...SEED_CLIENT_CONTACTS];
   } catch {
@@ -768,6 +777,18 @@ export function ProjectsProvider({ children }) {
     setClientContacts((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
+  // Sets one CRM contact as primary for its company; clears is_primary on all others in same company.
+  const setContactAsPrimary = useCallback((id) => {
+    setClientContacts((prev) => {
+      const target = prev.find((c) => c.id === id);
+      if (!target) return prev;
+      return prev.map((c) => {
+        if (c.company_name !== target.company_name) return c;
+        return { ...c, is_primary: c.id === id, updated_at: new Date().toISOString() };
+      });
+    });
+  }, []);
+
   return (
     <ProjectsContext.Provider
       value={{
@@ -790,6 +811,7 @@ export function ProjectsProvider({ children }) {
         createClientContact,
         updateClientContact,
         deleteClientContact,
+        setContactAsPrimary,
         // Constants
         STAGES,
         PROJECT_TYPES,

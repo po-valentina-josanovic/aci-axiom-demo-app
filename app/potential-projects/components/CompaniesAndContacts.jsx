@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useProjects } from './ProjectsStore';
 
 // Derive unique company options from the CRM pool (clientContacts).
 function companyOptionsFromCRM(clientContacts) {
@@ -31,6 +32,7 @@ export default function CompaniesAndContacts({
   inputStyle, labelStyle, disabledInputStyle,
 }) {
   const companies = useMemo(() => companyOptionsFromCRM(clientContacts), [clientContacts]);
+  const { setContactAsPrimary } = useProjects();
 
   function mutate(fn) {
     if (isBidTracer) return;
@@ -135,10 +137,12 @@ export default function CompaniesAndContacts({
   }
 
   // ── Contact helpers ───────────────────────────────────────────────────────
-  function addContactToSlot({ role, company, slotId }) {
-    return (crm) => {
-      if (isBidTracer) return;
-      const contact = {
+
+  // Accepts an array of CRM contacts; is_primary is derived from the CRM record.
+  function addContactsToSlot({ role, company, slotId }) {
+    return (crmContacts) => {
+      if (isBidTracer || !crmContacts.length) return;
+      const newContacts = crmContacts.map((crm) => ({
         id: crypto.randomUUID(),
         source_contact_id: crm.id,
         contact_role: role,
@@ -149,10 +153,11 @@ export default function CompaniesAndContacts({
         company_city: crm.company_city,
         company_state: crm.company_state,
         slot_id: slotId,
-      };
+        is_primary: !!crm.is_primary,
+      }));
       setDirty(true);
       setSaveSuccess(false);
-      setForm((prev) => ({ ...prev, contacts: [...(prev.contacts || []), contact] }));
+      setForm((prev) => ({ ...prev, contacts: [...(prev.contacts || []), ...newContacts] }));
     };
   }
 
@@ -220,7 +225,8 @@ export default function CompaniesAndContacts({
                     role="Client"
                     contacts={contactsForSlot(form.contacts, slot.id, 'Client', slot.company_name)}
                     crmPool={clientContacts}
-                    onAdd={addContactToSlot({ role: 'Client', company: slot.company_name, slotId: slot.id })}
+                    onAdd={addContactsToSlot({ role: 'Client', company: slot.company_name, slotId: slot.id })}
+                    onSetPrimary={(crmId) => setContactAsPrimary(crmId)}
                     onRemove={removeContact}
                     isBidTracer={isBidTracer}
                     btnPrimary={btnPrimary}
@@ -261,7 +267,8 @@ export default function CompaniesAndContacts({
               role="Owner"
               contacts={contactsForSlot(form.contacts, 'owner', 'Owner', ownerSlot.company_name)}
               crmPool={clientContacts}
-              onAdd={addContactToSlot({ role: 'Owner', company: ownerSlot.company_name, slotId: 'owner' })}
+              onAdd={addContactsToSlot({ role: 'Owner', company: ownerSlot.company_name, slotId: 'owner' })}
+              onSetPrimary={(crmId) => setContactAsPrimary(crmId)}
               onRemove={removeContact}
               isBidTracer={isBidTracer}
               btnPrimary={btnPrimary}
@@ -320,7 +327,8 @@ export default function CompaniesAndContacts({
                     role="Competitor"
                     contacts={contactsForSlot(form.contacts, slot.id, 'Competitor', slot.company_name)}
                     crmPool={clientContacts}
-                    onAdd={addContactToSlot({ role: 'Competitor', company: slot.company_name, slotId: slot.id })}
+                    onAdd={addContactsToSlot({ role: 'Competitor', company: slot.company_name, slotId: slot.id })}
+                    onSetPrimary={(crmId) => setContactAsPrimary(crmId)}
                     onRemove={removeContact}
                     isBidTracer={isBidTracer}
                     btnPrimary={btnPrimary}
@@ -408,7 +416,8 @@ export default function CompaniesAndContacts({
                     role={ac.type}
                     contacts={contactsForSlot(form.contacts, ac.id, ac.type, ac.company_name)}
                     crmPool={clientContacts}
-                    onAdd={addContactToSlot({ role: ac.type, company: ac.company_name, slotId: ac.id })}
+                    onAdd={addContactsToSlot({ role: ac.type, company: ac.company_name, slotId: ac.id })}
+                    onSetPrimary={(crmId) => setContactAsPrimary(crmId)}
                     onRemove={removeContact}
                     isBidTracer={isBidTracer}
                     btnPrimary={btnPrimary}
@@ -513,80 +522,240 @@ function CompanySelect({ value, onChange, companies, isBidTracer, inputStyle, di
   );
 }
 
-function NestedContactList({ company, role, contacts, crmPool, onAdd, onRemove, isBidTracer, btnPrimary, btnSecondary, btnDanger }) {
+function NestedContactList({ company, role, contacts, crmPool, onAdd, onSetPrimary, onRemove, isBidTracer, btnPrimary, btnSecondary, btnDanger, inputStyle }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [search, setSearch] = useState('');
+
+  // Dedup by source_contact_id AND by name (case-insensitive) to prevent any duplicates.
   const existingIds = new Set(contacts.map((c) => c.source_contact_id).filter(Boolean));
-  const available = (crmPool || []).filter((c) => c.company_name === company && !existingIds.has(c.id));
+  const existingNames = new Set(contacts.map((c) => c.name?.toLowerCase()).filter(Boolean));
+  const available = (crmPool || []).filter(
+    (c) => c.company_name === company && !existingIds.has(c.id) && !existingNames.has(c.name?.toLowerCase())
+  );
+  const filteredRaw = search
+    ? available.filter((c) =>
+        c.name?.toLowerCase().includes(search.toLowerCase()) ||
+        c.email?.toLowerCase().includes(search.toLowerCase())
+      )
+    : available;
+  const filtered = [...filteredRaw].sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  // Derive primary from CRM pool via source_contact_id — single source of truth.
+  const crmIsPrimary = (c) => !!(crmPool || []).find((crm) => crm.id === c.source_contact_id)?.is_primary;
+
+  // Primary first, then alphabetical
+  const sortedContacts = [...contacts].sort((a, b) => {
+    if (crmIsPrimary(a) && !crmIsPrimary(b)) return -1;
+    if (!crmIsPrimary(a) && crmIsPrimary(b)) return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  function toggleSelect(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
+
+  function handleAdd() {
+    const toAdd = filtered.filter((c) => selected.has(c.id));
+    if (!toAdd.length) return;
+    onAdd(toAdd);
+    setSelected(new Set());
+    setPickerOpen(false);
+    setSearch('');
+  }
+
+  function handleCancel() {
+    setPickerOpen(false);
+    setSelected(new Set());
+    setSearch('');
+  }
+
+  function openPicker() {
+    setPickerOpen(true);
+  }
+
+  function handleSelectAll() {
+    setSelected(new Set(filtered.map((c) => c.id)));
+  }
+
+  function handleSelectNone() {
+    setSelected(new Set());
+  }
 
   return (
     <div style={{ marginTop: '6px' }}>
-      {contacts.length === 0 ? (
+      {/* Contact list */}
+      {sortedContacts.length === 0 ? (
         <p style={{ fontSize: '11px', color: '#8694a7', margin: '0 0 6px 0' }}>No contacts selected for this company.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '6px' }}>
-          {contacts.map((c) => (
+          {sortedContacts.map((c) => {
+            const isPrimary = crmIsPrimary(c);
+            return (
             <div
               key={c.id}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid #e8ecf1', borderRadius: '6px', padding: '5px 10px' }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: '#f8fafc',
+                border: '1px solid #e8ecf1',
+                borderRadius: '6px', padding: '5px 10px',
+              }}
             >
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                 <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b' }}>{c.name}</span>
-                {c.email && <span style={{ fontSize: '11px', color: '#8694a7', marginLeft: '6px' }}>{c.email}</span>}
+
+                {isPrimary && (
+                  <span style={{
+                    fontSize: '10px', fontWeight: 600,
+                    color: '#92400e', background: '#fef3c7',
+                    border: '1px solid #fcd34d', borderRadius: '4px',
+                    padding: '1px 5px', flexShrink: 0,
+                  }}>
+                    Primary
+                  </span>
+                )}
+
+                {c.email && (
+                  <span style={{ fontSize: '11px', color: '#8694a7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.email}
+                  </span>
+                )}
               </div>
+
               {!isBidTracer && (
-                <button onClick={() => onRemove(c.id)} style={btnDanger} title="Remove">
+                <button onClick={() => onRemove(c.id)} style={{ ...btnDanger, flexShrink: 0, marginLeft: '8px' }} title="Remove">
                   <svg style={{ width: '13px', height: '13px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Add contacts control */}
       {!isBidTracer && (
         <>
-          <button
-            onClick={() => setPickerOpen((v) => !v)}
-            disabled={available.length === 0 && !pickerOpen}
-            style={{
-              ...btnSecondary, fontSize: '11px', padding: '4px 10px',
-              cursor: available.length === 0 && !pickerOpen ? 'not-allowed' : 'pointer',
-              opacity: available.length === 0 && !pickerOpen ? 0.5 : 1,
-            }}
-          >
-            {pickerOpen ? 'Cancel' : `+ Add ${role} contact`}
-          </button>
-          {available.length === 0 && !pickerOpen && (
-            <span style={{ fontSize: '10px', color: '#8694a7', marginLeft: '6px' }}>
-              No unassigned CRM contacts for {company}.
-            </span>
-          )}
-          {pickerOpen && (
-            <div style={{ marginTop: '6px', border: '1px solid #e8ecf1', borderRadius: '6px', background: '#fff', maxHeight: '180px', overflowY: 'auto' }}>
-              {available.length === 0 ? (
-                <div style={{ padding: '10px', fontSize: '11px', color: '#8694a7', textAlign: 'center' }}>
-                  No matching contacts in CRM.
-                </div>
-              ) : (
-                available.map((crm) => (
-                  <div
-                    key={crm.id}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f1f5f9' }}
-                  >
-                    <div>
-                      <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b' }}>{crm.name}</span>
-                      {crm.email && <span style={{ fontSize: '11px', color: '#8694a7', marginLeft: '6px' }}>{crm.email}</span>}
-                    </div>
+          {!pickerOpen ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={openPicker}
+                disabled={available.length === 0}
+                style={{
+                  ...btnSecondary, fontSize: '11px', padding: '4px 10px',
+                  cursor: available.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: available.length === 0 ? 0.5 : 1,
+                }}
+              >
+                + Add {role} contact{available.length !== 1 ? 's' : ''}
+              </button>
+              {available.length === 0 && (
+                <span style={{ fontSize: '10px', color: '#8694a7' }}>
+                  No unassigned CRM contacts for {company}.
+                </span>
+              )}
+            </div>
+          ) : (
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', background: '#fff', overflow: 'hidden' }}>
+              {/* Search + select-all header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                <input
+                  type="text"
+                  placeholder="Search contacts..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{ ...inputStyle, flex: 1, padding: '4px 8px', fontSize: '11px' }}
+                  autoFocus
+                />
+                {filtered.length > 1 && (
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                     <button
-                      onClick={() => { onAdd(crm); setPickerOpen(false); }}
-                      style={{ ...btnPrimary, padding: '3px 10px', fontSize: '10px' }}
+                      onClick={handleSelectAll}
+                      style={{ fontSize: '10px', color: '#2979ff', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', fontWeight: 600 }}
                     >
-                      + Add
+                      All
+                    </button>
+                    <span style={{ fontSize: '10px', color: '#cbd5e1' }}>|</span>
+                    <button
+                      onClick={handleSelectNone}
+                      style={{ fontSize: '10px', color: '#8694a7', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                    >
+                      None
                     </button>
                   </div>
-                ))
-              )}
+                )}
+              </div>
+
+              {/* Contact rows with checkboxes */}
+              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                {filtered.length === 0 ? (
+                  <div style={{ padding: '10px', fontSize: '11px', color: '#8694a7', textAlign: 'center' }}>
+                    No matching contacts in CRM.
+                  </div>
+                ) : (
+                  filtered.map((crm) => {
+                    const isChecked = selected.has(crm.id);
+                    return (
+                    <div
+                      key={crm.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '6px 10px', borderBottom: '1px solid #f1f5f9',
+                        background: isChecked ? '#eff6ff' : 'transparent',
+                      }}
+                    >
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', userSelect: 'none', minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelect(crm.id)}
+                          style={{ width: '13px', height: '13px', cursor: 'pointer', flexShrink: 0, accentColor: '#2979ff' }}
+                        />
+                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b' }}>{crm.name}</span>
+                          {crm.is_primary && (
+                            <span style={{ fontSize: '10px', fontWeight: 600, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '4px', padding: '1px 5px', flexShrink: 0 }}>
+                              Primary
+                            </span>
+                          )}
+                          {crm.email && (
+                            <span style={{ fontSize: '11px', color: '#8694a7' }}>{crm.email}</span>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer: Add button + cancel */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderTop: '1px solid #f1f5f9', background: '#fafbfc' }}>
+                <button
+                  onClick={handleAdd}
+                  disabled={selected.size === 0}
+                  style={{
+                    ...btnPrimary, fontSize: '11px', padding: '4px 12px',
+                    opacity: selected.size === 0 ? 0.5 : 1,
+                    cursor: selected.size === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {selected.size > 0 ? `Add ${selected.size} Contact${selected.size > 1 ? 's' : ''}` : 'Add Selected'}
+                </button>
+                <button onClick={handleCancel} style={{ ...btnSecondary, fontSize: '11px', padding: '4px 10px' }}>
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </>
