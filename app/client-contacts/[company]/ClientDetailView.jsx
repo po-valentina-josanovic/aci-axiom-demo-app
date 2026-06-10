@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useProjects } from '../../potential-projects/components/ProjectsStore';
 
@@ -9,99 +9,148 @@ const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fo
 const thStyle = { padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: '10px', color: '#5a6577', background: '#f1f5f9', borderBottom: '1px solid #e8ecf1' };
 const tdStyle = { padding: '8px 12px', fontSize: '12px', color: '#3a4a5c', borderBottom: '1px solid #f1f5f9' };
 
-function MultiRoleSelect({ value = [], options, onChange }) {
+// Normalize roles: existing contacts may have contact_role (string) or roles (array)
+function getRoles(c) {
+  if (Array.isArray(c.roles) && c.roles.length > 0) return c.roles;
+  if (c.contact_role) return [c.contact_role];
+  return [];
+}
+
+// ── Role multi-select dropdown ──────────────────────────────────────────────
+function RoleMultiSelect({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
-  const toggle = (role) => onChange(value.includes(role) ? value.filter((r) => r !== role) : [...value, role]);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  function toggle(role) {
+    onChange(value.includes(role) ? value.filter((r) => r !== role) : [...value, role]);
+  }
+
+  const label = value.length === 0 ? 'Select roles...' : value.length === 1 ? value[0] : null;
+
   return (
-    <div style={{ position: 'relative' }}>
-      {open && <div style={{ position: 'fixed', inset: 0, zIndex: 9 }} onClick={() => setOpen(false)} />}
-      <div
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        style={{ ...inputStyle, position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', cursor: 'pointer', minHeight: '34px', paddingRight: '28px' }}
+        style={{
+          ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          cursor: 'pointer', textAlign: 'left',
+        }}
       >
-        {value.length === 0
-          ? <span style={{ color: '#8694a7' }}>Select roles...</span>
-          : value.map((r) => (
-              <span key={r} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{r}</span>
-            ))
-        }
-        <svg style={{ width: '12px', height: '12px', color: '#8694a7', position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {value.length > 1 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#2979ff', color: '#fff', fontSize: '10px', fontWeight: 700, flexShrink: 0 }}>
+              {value.length}
+            </span>
+          )}
+          <span style={{ color: value.length === 0 ? '#8694a7' : '#1e293b' }}>
+            {label ?? 'Multiple roles selected'}
+          </span>
+        </span>
+        <svg style={{ width: '12px', height: '12px', color: '#8694a7', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={open ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
         </svg>
-      </div>
+      </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, overflow: 'hidden' }}>
-          {options.map((r) => {
-            const selected = value.includes(r);
-            return (
-              <div
-                key={r}
-                onClick={(e) => { e.stopPropagation(); toggle(r); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', cursor: 'pointer', background: selected ? '#eff6ff' : 'transparent', fontSize: '12px', color: selected ? '#1d4ed8' : '#1e293b' }}
-              >
-                <div style={{ width: '14px', height: '14px', borderRadius: '3px', border: `1px solid ${selected ? '#2979ff' : '#c8d1dc'}`, background: selected ? '#2979ff' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {selected && <svg style={{ width: '10px', height: '10px' }} fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                </div>
-                {r}
-              </div>
-            );
-          })}
+        <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+          {options.map((role) => (
+            <label
+              key={role}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', cursor: 'pointer', background: value.includes(role) ? '#eff6ff' : 'transparent', userSelect: 'none' }}
+            >
+              <input
+                type="checkbox"
+                checked={value.includes(role)}
+                onChange={() => toggle(role)}
+                style={{ width: '13px', height: '13px', accentColor: '#2979ff', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <span style={{ fontSize: '12px', color: '#1e293b' }}>{role}</span>
+            </label>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
+// ── Primary toggle ──────────────────────────────────────────────────────────
+function PrimaryToggle({ value, onChange }) {
+  return (
+    <div
+      onClick={() => onChange(!value)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer',
+        background: value ? '#eff6ff' : '#f8fafc',
+        border: `1px solid ${value ? '#93c5fd' : '#e2e8f0'}`,
+        borderRadius: '8px', padding: '10px 14px',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{
+        width: '36px', height: '20px', borderRadius: '10px', flexShrink: 0, position: 'relative',
+        background: value ? '#2979ff' : '#c8d1dc',
+        transition: 'background 0.2s',
+      }}>
+        <div style={{
+          position: 'absolute', top: '3px',
+          left: value ? '19px' : '3px',
+          width: '14px', height: '14px', borderRadius: '50%',
+          background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          transition: 'left 0.15s',
+        }} />
+      </div>
+      <span style={{ fontSize: '13px', fontWeight: 500, color: value ? '#1d4ed8' : '#3a4a5c' }}>
+        Make primary contact for this company
+      </span>
+    </div>
+  );
+}
+
+// ── Main component ──────────────────────────────────────────────────────────
 export default function ClientDetailView({ companyName }) {
-  const { clientContacts, clientCompanies, createClientContact, updateClientContact, deleteClientContact, createClientCompany, updateClientCompany, CONTACT_ROLES, projects } = useProjects();
+  const { clientContacts, createClientContact, updateClientContact, deleteClientContact, setContactAsPrimary, clientCompanies, createClientCompany, updateClientCompany, CONTACT_ROLES, projects } = useProjects();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', company_name: companyName, company_city: '', company_state: '', contact_role: ['Client'], is_primary: false });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', roles: [], is_primary: false });
   const [enrollmentAlert, setEnrollmentAlert] = useState(null);
-  const [primaryConflict, setPrimaryConflict] = useState(null); // { existingContact, pendingForm }
+  const [overrideConfirm, setOverrideConfirm] = useState(null); // { pendingSave, currentPrimaryName, newName }
 
-  // Contacts for this company — primary always first
+  // Contacts for this company — primary first, then alphabetical
   const companyContacts = useMemo(() =>
     clientContacts
       .filter((c) => (c.company_name || '') === companyName)
-      .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0)),
+      .sort((a, b) => {
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      }),
   [clientContacts, companyName]);
 
-  // Company info — prefer the clientCompanies record, fall back to first contact
-  const companyRecord = clientCompanies.find((co) => co.company_name === companyName);
+  const companyRecord = (clientCompanies || []).find((co) => co.company_name === companyName);
   const companyCity = companyRecord?.company_city || companyContacts[0]?.company_city || '';
   const companyState = companyRecord?.company_state || companyContacts[0]?.company_state || '';
-  const companySortName = companyRecord?.sort_name || '';
+  const enrollmentStatus = companyRecord?.vendor_enrollment || null;
 
-  // Map contact id -> projects
   const contactJobsMap = useMemo(() => {
     const map = {};
     (projects || []).forEach((p) => {
       (p.contacts || []).forEach((c) => {
-        const key = c.source_contact_id || c.id;
-        if (!map[key]) map[key] = [];
-        map[key].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
+        if (!map[c.id]) map[c.id] = [];
+        map[c.id].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
       });
     });
     return map;
   }, [projects]);
 
-  // Map contact id -> all distinct roles assigned across projects
-  const contactRolesMap = useMemo(() => {
-    const map = {};
-    (projects || []).forEach((p) => {
-      (p.contacts || []).forEach((c) => {
-        const key = c.source_contact_id || c.id;
-        if (!map[key]) map[key] = new Set();
-        const roles = Array.isArray(c.contact_role) ? c.contact_role : [c.contact_role].filter(Boolean);
-        roles.forEach((r) => map[key].add(r));
-      });
-    });
-    return map;
-  }, [projects]);
-
-  // All unique projects for this company
   const companyProjects = useMemo(() => {
     const seen = new Set();
     const result = [];
@@ -115,69 +164,76 @@ export default function ClientDetailView({ companyName }) {
 
   function openAddModal() {
     setEditingId(null);
-    setForm({ name: '', email: '', phone: '', company_name: companyName, company_city: companyCity, company_state: companyState, contact_role: ['Client'], is_primary: false });
+    setForm({ name: '', email: '', phone: '', roles: [], is_primary: false });
     setModalOpen(true);
   }
 
   function openEditModal(contact) {
     setEditingId(contact.id);
     setForm({
-      name: contact.name, email: contact.email || '', phone: contact.phone || '',
-      company_name: contact.company_name || companyName, company_city: contact.company_city || '',
-      company_state: contact.company_state || '', contact_role: Array.isArray(contact.contact_role) ? contact.contact_role : [contact.contact_role || 'Client'],
-      is_primary: contact.is_primary || false,
+      name: contact.name || '',
+      email: contact.email || '',
+      phone: contact.phone || '',
+      roles: getRoles(contact),
+      is_primary: !!contact.is_primary,
     });
     setModalOpen(true);
   }
 
-  function commitSave(finalForm) {
+  function handleSave() {
+    if (!form.name.trim()) return;
+    const firstRole = form.roles[0] || 'Client';
+    const isClient = form.roles.includes('Client');
+    const existingPrimary = companyContacts.find((c) => c.is_primary && c.id !== editingId);
+
+    // If trying to set primary but someone else is already primary → show override confirm
+    if (form.is_primary && existingPrimary) {
+      setOverrideConfirm({
+        currentPrimaryName: existingPrimary.name,
+        newName: form.name.trim(),
+        pendingSave: { firstRole, isClient },
+      });
+      return;
+    }
+
+    commitSave({ firstRole, isClient, setPrimary: form.is_primary });
+  }
+
+  function commitSave({ firstRole, isClient, setPrimary }) {
+    const name = form.name.trim();
     if (editingId) {
-      if (finalForm.is_primary) {
-        companyContacts.forEach((c) => {
-          if (c.id !== editingId && c.is_primary) updateClientContact(c.id, { is_primary: false });
-        });
-      }
-      updateClientContact(editingId, finalForm);
+      updateClientContact(editingId, { name, email: form.email, phone: form.phone, roles: form.roles, contact_role: firstRole });
+      if (setPrimary) setContactAsPrimary(editingId);
     } else {
-      if (finalForm.is_primary) {
-        companyContacts.forEach((c) => {
-          if (c.is_primary) updateClientContact(c.id, { is_primary: false });
+      const created = createClientContact({
+        name, email: form.email, phone: form.phone,
+        roles: form.roles, contact_role: firstRole,
+        company_name: companyName, company_city: companyCity, company_state: companyState,
+      });
+      if (setPrimary && created?.id) setContactAsPrimary(created.id);
+      if (isClient) {
+        const hasExistingClient = companyContacts.some((c) => {
+          const roles = Array.isArray(c.contact_role) ? c.contact_role : [c.contact_role];
+          return roles.includes('Client');
         });
-      }
-      createClientContact(finalForm);
-      if ((finalForm.contact_role || []).includes('Client')) {
-        const hasExistingClient = companyContacts.some((c) => (c.contact_role || []).includes('Client'));
         if (!hasExistingClient) {
           if (companyRecord) {
             updateClientCompany(companyRecord.id, { vendor_enrollment: 'pending' });
           } else {
             createClientCompany({ company_name: companyName, company_city: companyCity, company_state: companyState, vendor_enrollment: 'pending' });
           }
-          setEnrollmentAlert(finalForm.name.trim());
+          setEnrollmentAlert(name);
         }
       }
     }
     setModalOpen(false);
     setEditingId(null);
-  }
-
-  function handleSave() {
-    if (!form.name.trim()) return;
-    if (form.is_primary) {
-      const existing = companyContacts.find((c) => c.is_primary && c.id !== editingId);
-      if (existing) {
-        setPrimaryConflict({ existingContact: existing, pendingForm: form });
-        return;
-      }
-    }
-    commitSave(form);
+    setOverrideConfirm(null);
   }
 
   function markCompanyEnrollmentComplete() {
     if (companyRecord) updateClientCompany(companyRecord.id, { vendor_enrollment: 'completed' });
   }
-
-  const enrollmentStatus = companyRecord?.vendor_enrollment || null;
 
   const STAGE_COLORS = {
     Preliminary: { bg: '#e8ecf1', color: '#1e293b' },
@@ -189,6 +245,8 @@ export default function ClientDetailView({ companyName }) {
     Pending: { bg: '#fef9c2', color: '#a36100' },
     Cancel: { bg: '#e8ecf1', color: '#5a6577' },
   };
+
+  const roleOptions = (CONTACT_ROLES || []).filter((r) => r !== 'ACI/API/POC' && r !== 'CommissionedSalesPerson');
 
   return (
     <>
@@ -255,24 +313,29 @@ export default function ClientDetailView({ companyName }) {
 
       {/* Vendor Enrollment Popup */}
       {enrollmentAlert && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', margin: '16px', overflow: 'hidden' }}>
-            <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '1px solid #e8ecf1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Vendor enrollment needed</span>
-              <button onClick={() => setEnrollmentAlert(null)} style={{ background: 'none', border: 'none', color: '#8694a7', cursor: 'pointer', padding: '2px', display: 'flex' }}>
-                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={() => setEnrollmentAlert(null)}>
+          <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', margin: '16px', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ background: '#fffbeb', borderBottom: '1px solid #fde68a', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#fef3c7', border: '2px solid #f9a825', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg style={{ width: '18px', height: '18px', color: '#b45309' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#92400e' }}>Vendor Enrollment Needed</div>
+                <div style={{ fontSize: '11px', color: '#b45309', marginTop: '1px' }}>Action required</div>
+              </div>
             </div>
-            <div style={{ padding: '16px' }}>
-              <p style={{ fontSize: '12px', color: '#3a4a5c', margin: 0, lineHeight: 1.6 }}>
-                <strong>{companyName}</strong> has been added as a client. Vendor enrollment needs to be started for this company before any work can move forward.
+            <div style={{ padding: '16px 20px' }}>
+              <p style={{ fontSize: '13px', color: '#3a4a5c', margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                <strong>{enrollmentAlert}</strong> has been added as a Client contact.
+              </p>
+              <p style={{ fontSize: '12px', color: '#5a6577', margin: 0, lineHeight: 1.5 }}>
+                Please initiate the vendor enrollment process for this contact. You can track the enrollment status in the Vendor Enrollment column.
               </p>
             </div>
-            <div style={{ padding: '10px 16px', borderTop: '1px solid #e8ecf1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                onClick={() => setEnrollmentAlert(null)}
-                style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}
-              >
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e8ecf1', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setEnrollmentAlert(null)} style={{ padding: '7px 18px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#f9a825', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
                 Got it
               </button>
             </div>
@@ -293,10 +356,6 @@ export default function ClientDetailView({ companyName }) {
             <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{companyProjects.length}</div>
               <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>Linked Projects</div>
-            </div>
-            <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{companySortName || '—'}</div>
-              <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>Sort Name</div>
             </div>
             <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{companyCity || '—'}</div>
@@ -331,25 +390,26 @@ export default function ClientDetailView({ companyName }) {
                       </td>
                     </tr>
                   ) : (
-                    companyContacts.map((c, idx) => (
-                      <tr key={c.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                    companyContacts.map((c) => (
+                      <tr key={c.id} style={{ background: '#fff' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#fafbfc'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; }}
+                      >
+                        {/* Name + primary indicator */}
                         <td style={{ ...tdStyle, fontWeight: 500, color: '#1e293b' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {c.name}
                             {c.is_primary && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#fef9c2', color: '#a16207', border: '1px solid #fde047' }}>
-                                <svg style={{ width: '9px', height: '9px' }} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '10px', padding: '1px 7px' }}>
                                 Primary
                               </span>
                             )}
                           </div>
                         </td>
+                        {/* Role badges */}
                         <td style={tdStyle}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                            {[...new Set([
-                              ...(Array.isArray(c.contact_role) ? c.contact_role : [c.contact_role].filter(Boolean)),
-                              ...Array.from(contactRolesMap[c.id] || []),
-                            ])].map((r) => (
+                            {getRoles(c).map((r) => (
                               <span key={r} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{r}</span>
                             ))}
                           </div>
@@ -360,9 +420,16 @@ export default function ClientDetailView({ companyName }) {
                           {(contactJobsMap[c.id] || []).length === 0 ? (
                             <span style={{ fontSize: '10px', color: '#c8d1dc' }}>—</span>
                           ) : (
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#4338ca' }}>
-                              {(contactJobsMap[c.id] || []).length}
-                            </span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                              {(contactJobsMap[c.id] || []).map((job) => (
+                                <Link key={job.id} href={`/potential-projects/${job.id}`}
+                                  style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#e0e7ff', color: '#4338ca', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                                  title={`${job.number} — ${job.name} (${job.stage})`}
+                                >
+                                  {job.number}
+                                </Link>
+                              ))}
+                            </div>
                           )}
                         </td>
                         <td style={tdStyle}>
@@ -436,103 +503,120 @@ export default function ClientDetailView({ companyName }) {
         </div>
       </div>
 
-      {/* Add/Edit Contact Modal */}
-      {modalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={() => setModalOpen(false)}>
-          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.25)', width: '100%', maxWidth: '480px', margin: '16px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #d9dfe7' }}>
-              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>{editingId ? 'Edit Contact' : 'Add Contact'}</h2>
-              <button onClick={() => setModalOpen(false)} style={{ color: '#8694a7', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}>
+      {/* Override Primary Confirmation */}
+      {overrideConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '480px', margin: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #e8ecf1' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Override Primary Contact</h2>
+              <button onClick={() => setOverrideConfirm(null)} style={{ color: '#8694a7', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
                 <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={labelStyle}>Name *</label>
-                <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={inputStyle} placeholder="Full name" />
-              </div>
-              <div>
-                <label style={labelStyle}>Roles</label>
-                <MultiRoleSelect
-                  value={form.contact_role || []}
-                  options={CONTACT_ROLES.filter((r) => r !== 'ACI/API/POC' && r !== 'CommissionedSalesPerson')}
-                  onChange={(roles) => setForm((f) => ({ ...f, contact_role: roles }))}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={inputStyle} placeholder="email@example.com" />
-              </div>
-              <div>
-                <label style={labelStyle}>Phone</label>
-                <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={inputStyle} placeholder="(555) 555-5555" />
-              </div>
-              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '6px', background: form.is_primary ? '#eff6ff' : '#f8fafc', border: `1px solid ${form.is_primary ? '#93c5fd' : '#e8ecf1'}`, cursor: 'pointer' }}
-                onClick={() => setForm((f) => ({ ...f, is_primary: !f.is_primary }))}>
-                <div style={{
-                  width: '32px', height: '18px', borderRadius: '9px', flexShrink: 0, position: 'relative', transition: 'background 0.15s',
-                  background: form.is_primary ? '#2979ff' : '#c8d1dc',
-                }}>
-                  <div style={{
-                    position: 'absolute', top: '2px', left: form.is_primary ? '16px' : '2px',
-                    width: '14px', height: '14px', borderRadius: '50%', background: '#fff',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s',
-                  }} />
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: 500, color: form.is_primary ? '#1d4ed8' : '#5a6577', userSelect: 'none' }}>
-                  Make primary contact for this company
-                </span>
-              </div>
+            <div style={{ padding: '20px' }}>
+              <p style={{ fontSize: '13px', color: '#3a4a5c', margin: 0, lineHeight: 1.6 }}>
+                Are you sure you want to override{' '}
+                <strong style={{ color: '#1e293b' }}>'{overrideConfirm.currentPrimaryName}'</strong>
+                {' '}and make{' '}
+                <strong style={{ color: '#1e293b' }}>'{overrideConfirm.newName}'</strong>
+                {' '}the new primary contact?
+              </p>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
-              <button onClick={() => setModalOpen(false)} style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={!form.name.trim()} style={{
-                padding: '7px 14px', fontSize: '12px', fontWeight: 600, color: '#fff',
-                background: form.name.trim() ? '#2979ff' : '#c8d1dc',
-                border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed',
-              }}>
-                {editingId ? 'Update' : 'Add'} Contact
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', padding: '14px 20px', borderTop: '1px solid #e8ecf1' }}>
+              <button
+                onClick={() => commitSave({ ...overrideConfirm.pendingSave, setPrimary: false })}
+                style={{ padding: '7px 16px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#4b5563', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Save as regular
+              </button>
+              <button
+                onClick={() => setOverrideConfirm(null)}
+                style={{ padding: '7px 16px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => commitSave({ ...overrideConfirm.pendingSave, setPrimary: true })}
+                style={{ padding: '7px 16px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#d32f2f', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Override
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Primary conflict confirmation */}
-      {primaryConflict && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px', margin: '16px', overflow: 'hidden' }}>
-            <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '1px solid #e8ecf1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Override primary contact</span>
-              <button onClick={() => setPrimaryConflict(null)} style={{ background: 'none', border: 'none', color: '#8694a7', cursor: 'pointer', padding: '2px', display: 'flex' }}>
-                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+      {/* Add / Edit Contact Modal */}
+      {modalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={() => setModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.25)', width: '100%', maxWidth: '540px', margin: '16px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #d9dfe7' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>{editingId ? 'Edit Contact' : 'Add Contact'}</h2>
+              <button onClick={() => setModalOpen(false)} style={{ color: '#8694a7', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}>
+                <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div style={{ padding: '16px' }}>
-              <p style={{ fontSize: '12px', color: '#3a4a5c', margin: 0, lineHeight: 1.6 }}>
-                Are you sure you want to override <strong>'{primaryConflict.existingContact.name}'</strong> and make <strong>'{primaryConflict.pendingForm.name}'</strong> the new primary contact?
-              </p>
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={labelStyle}>Name <span style={{ color: '#d32f2f', marginLeft: '2px' }}>*</span></label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    style={inputStyle}
+                    placeholder="Full name"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Role <span style={{ color: '#d32f2f', marginLeft: '2px' }}>*</span></label>
+                  <RoleMultiSelect
+                    value={form.roles}
+                    onChange={(roles) => setForm((f) => ({ ...f, roles }))}
+                    options={roleOptions}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Email</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    style={inputStyle}
+                    placeholder="email@example.com"
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Phone</label>
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    style={inputStyle}
+                    placeholder="(555) 555-5555"
+                  />
+                </div>
+              </div>
+              <PrimaryToggle
+                value={form.is_primary}
+                onChange={(v) => setForm((f) => ({ ...f, is_primary: v }))}
+              />
             </div>
-            <div style={{ padding: '10px 16px', borderTop: '1px solid #e8ecf1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              {!editingId && (
-                <button
-                  onClick={() => { const f = { ...primaryConflict.pendingForm, is_primary: false }; setPrimaryConflict(null); commitSave(f); }}
-                  style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#fff', background: '#5a6577', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  Create as regular
-                </button>
-              )}
-              <button
-                onClick={() => setPrimaryConflict(null)}
-                style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}
-              >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
+              <button onClick={() => setModalOpen(false)} style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
-                onClick={() => { const f = primaryConflict.pendingForm; setPrimaryConflict(null); commitSave(f); }}
-                style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#e53935', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                onClick={handleSave}
+                disabled={!form.name.trim()}
+                style={{
+                  padding: '7px 16px', fontSize: '12px', fontWeight: 600, color: '#fff',
+                  background: form.name.trim() ? '#2979ff' : '#c8d1dc',
+                  border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed',
+                }}
               >
-                Override
+                {editingId ? 'Save Changes' : 'Add Contact'}
               </button>
             </div>
           </div>
