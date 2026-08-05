@@ -271,6 +271,18 @@
   }
 }
 
+/* Audit Tracker filter toolbars — one row on desktop; below ~1400px
+   (covers iPad Pro portrait/landscape) they wrap instead of overflowing
+   or clipping, since there isn't room for 7-8 controls plus Apply. */
+.audit-toolbar-row {
+  flex-wrap: nowrap;
+}
+@media (max-width: 1400px) {
+  .audit-toolbar-row {
+    flex-wrap: wrap;
+  }
+}
+
 /* Highlight pulse for scroll-to-field (outside layers so keyframes work) */
 .field-highlight {
   animation: fieldHighlight 2s ease-out !important;

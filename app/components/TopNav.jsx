@@ -98,6 +98,18 @@ export default function TopNav() {
               boxShadow: '0 6px 20px rgba(0,0,0,0.14)', minWidth: '180px', zIndex: 999, overflow: 'hidden',
             }}>
               <button
+                onClick={() => { setSettingsOpen(false); router.push('/audit-log'); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '9px 14px', fontSize: '13px', color: '#1e293b',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                Audit Tracker
+              </button>
+              <button
                 onClick={() => { setSettingsOpen(false); router.push('/user-management'); }}
                 style={{
                   display: 'block', width: '100%', textAlign: 'left',
