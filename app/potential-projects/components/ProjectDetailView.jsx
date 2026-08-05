@@ -168,9 +168,30 @@ function getRequiredStages(fieldKey) {
   return pipeline.slice(fieldIdx);
 }
 
-function RequiredBadge({ fieldKey }) {
-  const stages = getRequiredStages(fieldKey);
-  if (stages.length === 0) return null;
+function ToggleSwitch({ checked, onChange, disabled }) {
+  return (
+    <div
+      role="switch" aria-checked={checked}
+      onClick={() => !disabled && onChange(!checked)}
+      style={{
+        display: 'inline-flex', alignItems: 'center', cursor: disabled ? 'not-allowed' : 'pointer',
+        width: '32px', height: '17px', borderRadius: '9px', flexShrink: 0,
+        background: checked ? '#2979ff' : '#c8d1dc',
+        position: 'relative', transition: 'background 0.2s',
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: '2px', left: checked ? '15px' : '2px',
+        width: '13px', height: '13px', borderRadius: '50%', background: '#fff',
+        transition: 'left 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+      }} />
+    </div>
+  );
+}
+
+function RequiredBadge({ fieldKey, stages: stagesOverride }) {
+  const stages = stagesOverride || getRequiredStages(fieldKey);
+  if (!stages || stages.length === 0) return null;
   return (
     <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#8694a7' }}>
       Required for
@@ -1580,10 +1601,20 @@ export default function ProjectDetailView({ projectId }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px' }}>
                 <div>
-                  <label style={labelStyle}>Liquidated Damages</label>
+                  <label style={labelStyle}>
+                    Liquidated Damages
+                    <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      {form.bid_details?.liquidated_damages_required && <RequiredBadge stages={['Bid', 'Award']} />}
+                      <ToggleSwitch
+                        checked={!!form.bid_details?.liquidated_damages_required}
+                        onChange={(val) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, liquidated_damages_required: val } })); setDirty(true); }}
+                        disabled={isBidTracer}
+                      />
+                    </span>
+                  </label>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <input type="text" value={form.bid_details?.liquidated_damages_amount || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, liquidated_damages_amount: e.target.value } })); setDirty(true); }} style={{ ...btStyle, flex: 1 }} placeholder="Amount" disabled={isBidTracer} />
-                    <select value={form.bid_details?.liquidated_damages_per || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, liquidated_damages_per: e.target.value } })); setDirty(true); }} style={{ ...btStyle, width: '110px', flex: 'none' }} disabled={isBidTracer}>
+                    <input type="text" value={form.bid_details?.liquidated_damages_amount || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, liquidated_damages_amount: e.target.value } })); setDirty(true); }} style={{ ...(!form.bid_details?.liquidated_damages_required || isBidTracer ? disabledInputStyle : btStyle), flex: 1 }} placeholder="Amount" disabled={!form.bid_details?.liquidated_damages_required || isBidTracer} />
+                    <select value={form.bid_details?.liquidated_damages_per || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, liquidated_damages_per: e.target.value } })); setDirty(true); }} style={{ ...(!form.bid_details?.liquidated_damages_required || isBidTracer ? disabledInputStyle : btStyle), width: '110px', flex: 'none' }} disabled={!form.bid_details?.liquidated_damages_required || isBidTracer}>
                       <option value="">Per...</option>
                       {LIQUIDATED_DAMAGES_PER.map((p) => <option key={p} value={p}>{p}</option>)}
                     </select>
@@ -1607,8 +1638,18 @@ export default function ProjectDetailView({ projectId }) {
                   <input type="text" value={form.bid_details?.document_id || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, document_id: e.target.value } })); setDirty(true); }} style={btStyle} placeholder="PO or reference number" disabled={isBidTracer} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Retainage %</label>
-                  <input type="number" min={0} max={100} value={form.bid_details?.retainage_pct || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, retainage_pct: e.target.value } })); setDirty(true); }} style={btStyle} placeholder="0" disabled={isBidTracer} />
+                  <label style={labelStyle}>
+                    Retainage %
+                    <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      {form.bid_details?.retainage_required && <RequiredBadge stages={['Bid', 'Award']} />}
+                      <ToggleSwitch
+                        checked={!!form.bid_details?.retainage_required}
+                        onChange={(val) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, retainage_required: val } })); setDirty(true); }}
+                        disabled={isBidTracer}
+                      />
+                    </span>
+                  </label>
+                  <input type="number" min={0} max={100} value={form.bid_details?.retainage_pct || ''} onChange={(e) => { setForm((prev) => ({ ...prev, bid_details: { ...prev.bid_details, retainage_pct: e.target.value } })); setDirty(true); }} style={!form.bid_details?.retainage_required || isBidTracer ? disabledInputStyle : btStyle} placeholder="0" disabled={!form.bid_details?.retainage_required || isBidTracer} />
                 </div>
                 <div>
                   <label style={labelStyle}>Warranty (months)</label>
