@@ -7,7 +7,8 @@ import { useProjects } from './ProjectsStore';
 import CollapsibleSection from './CollapsibleSection';
 import StageSelector from './StageSelector';
 import CompaniesAndContacts from './CompaniesAndContacts';
-import { formatDateMDY, formatDateTimeMDY, formatCurrencyNoCents, formatNumberCommas } from './formatters';
+import BudgetRevisionLog from './BudgetRevisionLog';
+import { formatDateMDY, formatDateTimeMDY, formatCurrencyNoCents, formatCurrencyCents, formatNumberCommas } from './formatters';
 import useUnsavedChangesPrompt from './useUnsavedChangesPrompt';
 import UnsavedChangesModal from './UnsavedChangesModal';
 
@@ -16,6 +17,14 @@ const formatCurrency = formatCurrencyNoCents;
 
 function parseCurrency(str) {
   return str.replace(/[^0-9]/g, '');
+}
+
+// Cost of Work / (1 - (GM/100)) = Total Price. Returns '' when inputs are incomplete.
+function computeTotalPrice(costOfWork, grossMarginPercent) {
+  const cow = parseFloat(costOfWork);
+  const gm = parseFloat(grossMarginPercent);
+  if (isNaN(cow) || isNaN(gm) || gm >= 100) return '';
+  return (cow / (1 - gm / 100)).toFixed(2);
 }
 
 // --- Stage field requirements (cumulative, Section 4 / 20) ---
@@ -33,6 +42,7 @@ const STAGE_REQUIREMENTS = {
   ],
   Bid: [
     { section: 'bid_details', fields: ['project_end_date'], label: 'Project End Date' },
+    { section: 'bid_details', fields: ['cost_of_work', 'gross_margin_percent'], label: 'Cost of Work & Gross Margin %' },
     { section: 'bid_details', check: 'hasTrades', label: 'At least 1 Estimator or Trade' },
     { section: 'bid_details', check: 'hasYearBurns', label: 'Year Burns (5 rows = 100%)' },
   ],
@@ -73,6 +83,8 @@ const FIELD_STAGE_MAP = {
   'contract_details.contract_type': 'Budget',
   'contract_details.end_sector': 'Budget',
   'bid_details.project_end_date': 'Bid',
+  'bid_details.cost_of_work': 'Bid',
+  'bid_details.gross_margin_percent': 'Bid',
   'bid_details.trades': 'Bid',
   'bid_details.year_burns': 'Bid',
   'award_details.awarded_date': 'Award',
@@ -376,6 +388,42 @@ export default function ProjectDetailView({ projectId }) {
         updated[parts[0]] = { ...updated[parts[0]], [parts[1]]: { ...(updated[parts[0]]?.[parts[1]] || {}), [parts[2]]: value } };
       }
       return updated;
+    });
+  }
+
+  // Appends a new bid revision (Budget Details) and writes the latest values through to Bid Details.
+  // clientId is null for single/no-client projects, where revisions live at the root of the form.
+  function addBudgetRevision(clientId, values) {
+    if (isBidTracer) return;
+    setDirty(true);
+    setSaveSuccess(false);
+    setForm((prev) => {
+      const bucket = clientId ? ((prev.client_data || {})[clientId]?.budget_revisions || []) : (prev.budget_revisions || []);
+      const nextNumber = bucket.length > 0 ? Math.max(...bucket.map((r) => r.revision_number)) + 1 : 1;
+      const revision = { id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, revision_number: nextNumber, date: new Date().toISOString(), ...values };
+      const newRevisions = [...bucket, revision];
+
+      if (!clientId) {
+        return {
+          ...prev,
+          budget_revisions: newRevisions,
+          bid_details: { ...prev.bid_details, cost_of_work: values.cost_of_work, gross_margin_percent: values.gross_margin_percent, total_price: values.total_price },
+        };
+      }
+
+      const prevCD = (prev.client_data || {})[clientId] || {};
+      const prevBid = prevCD.bid_details || {};
+      return {
+        ...prev,
+        client_data: {
+          ...(prev.client_data || {}),
+          [clientId]: {
+            ...prevCD,
+            budget_revisions: newRevisions,
+            bid_details: { ...prevBid, cost_of_work: values.cost_of_work, gross_margin_percent: values.gross_margin_percent, total_price: values.total_price },
+          },
+        },
+      };
     });
   }
 
@@ -1230,26 +1278,48 @@ export default function ProjectDetailView({ projectId }) {
               <>
                 <label style={labelStyle}>Estimation Number <RequiredBadge fieldKey="estimation_number" /></label>
                 <input type="text" value={form.estimation_number || ''} onChange={(e) => updateField('estimation_number', e.target.value)} style={{ ...btStyle, maxWidth: '300px' }} placeholder="Enter estimation number" disabled={isBidTracer} />
+                <BudgetRevisionLog
+                  revisions={form.budget_revisions || []}
+                  originalValues={{ cost_of_work: form.bid_details?.cost_of_work, gross_margin_percent: form.bid_details?.gross_margin_percent, total_price: form.bid_details?.total_price }}
+                  createdDate={form.created_at}
+                  onAddRevision={(values) => addBudgetRevision(null, values)}
+                  readOnly={isBidTracer}
+                  exportFileLabel={form.potential_project_number || form.project_name}
+                />
               </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={labelStyle}>Estimation Numbers <RequiredBadge fieldKey="estimation_number" /></label>
                 {projectClients.map((client) => (
-                  <div key={client.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e8ecf1' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b', minWidth: '140px' }}>{client.company_name || '—'}</span>
-                    <input
-                      type="text"
-                      value={(form.client_data || {})[client.id]?.estimation_number || ''}
-                      onChange={(e) => {
-                        setForm((prev) => ({
-                          ...prev,
-                          client_data: { ...(prev.client_data || {}), [client.id]: { ...((prev.client_data || {})[client.id] || {}), estimation_number: e.target.value } },
-                        }));
-                        setDirty(true);
+                  <div key={client.id} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e8ecf1' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 500, color: '#1e293b', minWidth: '140px' }}>{client.company_name || '—'}</span>
+                      <input
+                        type="text"
+                        value={(form.client_data || {})[client.id]?.estimation_number || ''}
+                        onChange={(e) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            client_data: { ...(prev.client_data || {}), [client.id]: { ...((prev.client_data || {})[client.id] || {}), estimation_number: e.target.value } },
+                          }));
+                          setDirty(true);
+                        }}
+                        style={{ ...inputStyle, maxWidth: '240px' }}
+                        placeholder="Estimation #"
+                        disabled={isBidTracer}
+                      />
+                    </div>
+                    <BudgetRevisionLog
+                      revisions={(form.client_data || {})[client.id]?.budget_revisions || []}
+                      originalValues={{
+                        cost_of_work: (form.client_data || {})[client.id]?.bid_details?.cost_of_work,
+                        gross_margin_percent: (form.client_data || {})[client.id]?.bid_details?.gross_margin_percent,
+                        total_price: (form.client_data || {})[client.id]?.bid_details?.total_price,
                       }}
-                      style={{ ...inputStyle, maxWidth: '240px' }}
-                      placeholder="Estimation #"
-                      disabled={isBidTracer}
+                      createdDate={form.created_at}
+                      onAddRevision={(values) => addBudgetRevision(client.id, values)}
+                      readOnly={isBidTracer}
+                      exportFileLabel={`${form.potential_project_number || form.project_name}_${client.company_name || client.id}`}
                     />
                   </div>
                 ))}
@@ -1275,6 +1345,47 @@ export default function ProjectDetailView({ projectId }) {
 
             {/* --- Single client or no clients: show fields directly --- */}
             {projectClients.length <= 1 && (<>
+              {/* Cost of Work / Gross Margin % / Total Price (drives Budget Details revision log) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div id="field-bid_details-cost_of_work">
+                  <label style={labelStyle}>Cost of Work <RequiredBadge fieldKey="bid_details.cost_of_work" /></label>
+                  <input
+                    type="text"
+                    value={formatNumberCommas(form.bid_details?.cost_of_work)}
+                    onChange={(e) => {
+                      const cost_of_work = parseCurrency(e.target.value);
+                      setForm((prev) => {
+                        const gm = prev.bid_details?.gross_margin_percent;
+                        const total_price = computeTotalPrice(cost_of_work, gm);
+                        return { ...prev, bid_details: { ...prev.bid_details, cost_of_work, total_price } };
+                      });
+                      setDirty(true);
+                    }}
+                    style={btStyle} placeholder="0" disabled={isBidTracer}
+                  />
+                </div>
+                <div id="field-bid_details-gross_margin_percent">
+                  <label style={labelStyle}>Gross Margin % <RequiredBadge fieldKey="bid_details.gross_margin_percent" /></label>
+                  <input
+                    type="number" min={0} max={99}
+                    value={form.bid_details?.gross_margin_percent ?? ''}
+                    onChange={(e) => {
+                      const gm = e.target.value;
+                      setForm((prev) => {
+                        const cow = prev.bid_details?.cost_of_work;
+                        const total_price = computeTotalPrice(cow, gm);
+                        return { ...prev, bid_details: { ...prev.bid_details, gross_margin_percent: gm, total_price } };
+                      });
+                      setDirty(true);
+                    }}
+                    style={btStyle} placeholder="0" disabled={isBidTracer}
+                  />
+                </div>
+              </div>
+              <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', fontSize: '13px', fontWeight: 600 }}>
+                Total Price: {formatCurrencyCents(form.bid_details?.total_price) || '$0.00'}
+              </div>
+
               {/* Total Bid Cost + End Date */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
@@ -1356,6 +1467,10 @@ export default function ProjectDetailView({ projectId }) {
                       let newBid;
                       if (path === 'total_bid_cost') {
                         newBid = { ...prevBid, total_bid_cost: value };
+                      } else if (path === 'cost_of_work' || path === 'gross_margin_percent') {
+                        const cow = path === 'cost_of_work' ? value : prevBid.cost_of_work;
+                        const gm = path === 'gross_margin_percent' ? value : prevBid.gross_margin_percent;
+                        newBid = { ...prevBid, [path]: value, total_price: computeTotalPrice(cow, gm) };
                       } else {
                         newBid = { ...prevBid, cost_breakdown: { ...(prevBid.cost_breakdown || {}), [path]: value } };
                       }
@@ -1384,6 +1499,29 @@ export default function ProjectDetailView({ projectId }) {
                       </button>
                       {isClientOpen && (
                         <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div>
+                              <label style={labelStyle}>Cost of Work <RequiredBadge fieldKey="bid_details.cost_of_work" /></label>
+                              <input
+                                type="text"
+                                value={formatNumberCommas(clientBid.cost_of_work)}
+                                onChange={(e) => updateClientBid('cost_of_work', parseCurrency(e.target.value))}
+                                style={btStyle} placeholder="0" disabled={isBidTracer}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Gross Margin % <RequiredBadge fieldKey="bid_details.gross_margin_percent" /></label>
+                              <input
+                                type="number" min={0} max={99}
+                                value={clientBid.gross_margin_percent ?? ''}
+                                onChange={(e) => updateClientBid('gross_margin_percent', e.target.value)}
+                                style={btStyle} placeholder="0" disabled={isBidTracer}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', fontSize: '13px', fontWeight: 600 }}>
+                            Total Price: {formatCurrencyCents(clientBid.total_price) || '$0.00'}
+                          </div>
                           <div>
                             <label style={labelStyle}>Total Bid Cost</label>
                             <input

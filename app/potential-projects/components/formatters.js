@@ -44,6 +44,13 @@ export function formatCurrencyNoCents(val) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Math.round(num));
 }
 
+export function formatCurrencyCents(val) {
+  if (val === '' || val === null || val === undefined) return '';
+  const num = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]/g, '')) : val;
+  if (isNaN(num)) return '';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+}
+
 export function parseNumber(str) {
   if (str === '' || str === null || str === undefined) return '';
   return String(str).replace(/[^0-9]/g, '');

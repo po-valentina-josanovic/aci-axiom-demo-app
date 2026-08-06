@@ -186,6 +186,9 @@ const SEED_PROJECTS = [
     bid_details: {
       total_bid_cost: '4250000.00',
       project_end_date: '2027-03-15',
+      cost_of_work: '3400000.00',
+      gross_margin_percent: '20.00',
+      total_price: '4250000.00',
       cost_breakdown: { labor_cost: '1800000.00', labor_hours: '22500', material_cost: '1500000.00', equipment_cost: '350000.00', subcontract_cost: '450000.00', other_cost: '150000.00' },
       estimators: ['Mike Johnson (EST-01)', 'Sarah Williams (EST-01)'],
       trades: [
@@ -199,6 +202,10 @@ const SEED_PROJECTS = [
         { id: 'yb2', year: 2, percentage: '30' },
       ],
     },
+    budget_revisions: [
+      { id: 'rev-seed-1-1', revision_number: 1, date: '2026-03-18T10:00:00.000Z', cost_of_work: '3200000.00', gross_margin_percent: '18.00', total_price: '3902439.02' },
+      { id: 'rev-seed-1-2', revision_number: 2, date: '2026-04-05T13:45:00.000Z', cost_of_work: '3400000.00', gross_margin_percent: '20.00', total_price: '4250000.00' },
+    ],
     notes: [],
     clients: [{ id: 'cl1', name: 'Metro Health Systems' }],
   },
