@@ -4,19 +4,57 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useProjects } from '../potential-projects/components/ProjectsStore';
+import MultiSelectDropdown from '../audit-log/components/MultiSelectDropdown';
+import AddressFields from './components/AddressFields';
+import AddressBook from './components/AddressBook';
 
 const inputStyle = { width: '100%', border: '1px solid #c8d1dc', borderRadius: '6px', padding: '7px 10px', fontSize: '12px', outline: 'none', background: '#fff', color: '#1e293b' };
 const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', marginBottom: '4px' };
 const thStyle = { padding: '8px 14px', textAlign: 'left', fontWeight: 600, fontSize: '10px', color: '#1e293b', background: '#dbe4f0', borderBottom: '1px solid #c8d1dc', whiteSpace: 'nowrap' };
 const tdStyle = { padding: '10px 14px', fontSize: '12px', color: '#3a4a5c', borderBottom: '1px solid #e8ecf1' };
 
+const BLANK_FORM = {
+  company_name: '',
+  company_group: [],
+  company_type: [],
+  address: { street: '', city: '', state: '', zip: '', country: '' }, // used while same_address_for_all is on
+  addresses: [], // full address book, used once same_address_for_all is turned off
+  same_address_for_all: true,
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+};
+
+function SameAddressToggle({ value, onChange }) {
+  return (
+    <div
+      onClick={() => onChange(!value)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer',
+        background: value ? '#eff6ff' : '#f8fafc',
+        border: `1px solid ${value ? '#93c5fd' : '#e2e8f0'}`,
+        borderRadius: '8px', padding: '10px 14px',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{ width: '36px', height: '20px', borderRadius: '10px', flexShrink: 0, position: 'relative', background: value ? '#2979ff' : '#c8d1dc', transition: 'background 0.2s' }}>
+        <div style={{ position: 'absolute', top: '3px', left: value ? '19px' : '3px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
+      </div>
+      <span style={{ fontSize: '12px', fontWeight: 500, color: value ? '#1d4ed8' : '#3a4a5c' }}>
+        Use the same address for mailing, shipping, and billing
+      </span>
+    </div>
+  );
+}
+
 export default function ClientContactsView() {
-  const { clientContacts, clientCompanies, createClientCompany, US_STATES, projects } = useProjects();
+  const { clientContacts, clientCompanies, createClientCompany, createClientContact, setContactAsPrimary, COMPANY_GROUPS, COMPANY_TYPES, projects } = useProjects();
   const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ company_name: '', sort_name: '', company_city: '', company_state: '' });
+  const [form, setForm] = useState(BLANK_FORM);
   const [returnData, setReturnData] = useState(null);
 
   useEffect(() => {
@@ -90,17 +128,83 @@ export default function ClientContactsView() {
     );
   }, [companyGroups, search]);
 
+  // The Main address, regardless of which mode is active — used for
+  // validation and for the company's derived city/state.
+  const mainAddr = form.same_address_for_all
+    ? form.address
+    : (form.addresses.find((a) => a.type === 'Main') || {});
+
+  const isFormValid =
+    form.company_name.trim() &&
+    form.company_group.length > 0 &&
+    form.company_type.length > 0 &&
+    (mainAddr.street || '').trim() &&
+    (mainAddr.city || '').trim() &&
+    (mainAddr.state || '').trim() &&
+    (mainAddr.zip || '').trim() &&
+    (mainAddr.country || '').trim() &&
+    form.first_name.trim() &&
+    form.last_name.trim() &&
+    form.email.trim() &&
+    form.phone.trim();
+
+  function handleToggleSameAddress(value) {
+    setForm((f) => {
+      // Switching off: seed the address book with whatever was typed into
+      // the simple Main address so nothing already entered is lost.
+      if (!value && f.addresses.length === 0 && (f.address.street || f.address.city)) {
+        return { ...f, same_address_for_all: value, addresses: [{ id: crypto.randomUUID(), type: 'Main', ...f.address }] };
+      }
+      return { ...f, same_address_for_all: value };
+    });
+  }
+
   function handleSave() {
-    if (!form.company_name.trim()) return;
+    if (!isFormValid) return;
+
+    let addresses;
+    let mainId;
+    if (form.same_address_for_all) {
+      const mainAddrObj = { id: crypto.randomUUID(), type: 'Main', ...form.address };
+      addresses = [
+        mainAddrObj,
+        { id: crypto.randomUUID(), type: 'Billing', ...form.address },
+        { id: crypto.randomUUID(), type: 'Mailing', ...form.address },
+        { id: crypto.randomUUID(), type: 'Shipping', ...form.address },
+      ];
+      mainId = mainAddrObj.id;
+    } else {
+      addresses = form.addresses;
+      mainId = (addresses.find((a) => a.type === 'Main') || {}).id;
+    }
+
     createClientCompany({
       company_name: form.company_name,
-      sort_name: form.sort_name,
-      company_city: form.company_city,
-      company_state: form.company_state,
+      company_group: form.company_group,
+      company_type: form.company_type,
+      company_city: mainAddr.city,
+      company_state: mainAddr.state,
+      addresses,
     });
+
+    const primaryRole = form.company_type[0] || 'Client';
+    const created = createClientContact({
+      name: `${form.first_name} ${form.last_name}`.trim(),
+      email: form.email,
+      phone: form.phone,
+      roles: form.company_type,
+      contact_role: primaryRole,
+      company_name: form.company_name,
+      company_city: mainAddr.city,
+      company_state: mainAddr.state,
+      address_id: mainId,
+    });
+    if (created?.id) setContactAsPrimary(created.id);
+
     setModalOpen(false);
-    setForm({ company_name: '', sort_name: '', company_city: '', company_state: '' });
-    router.push(`/client-contacts/${encodeURIComponent(form.company_name)}`);
+    const companyName = form.company_name;
+    setForm(BLANK_FORM);
+    router.push(`/client-contacts/${encodeURIComponent(companyName)}`);
   }
 
   function handleReturnToProject() {
@@ -216,40 +320,82 @@ export default function ClientContactsView() {
       {/* New Company Modal */}
       {modalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={() => setModalOpen(false)}>
-          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.25)', width: '100%', maxWidth: '480px', margin: '16px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.25)', width: '100%', maxWidth: form.same_address_for_all ? '560px' : '760px', maxHeight: '90vh', overflowY: 'auto', margin: '16px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #d9dfe7' }}>
               <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>New Company</h2>
               <button onClick={() => setModalOpen(false)} style={{ color: '#8694a7', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}>
                 <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={labelStyle}>Company Group *</label>
+                  <MultiSelectDropdown
+                    options={COMPANY_GROUPS}
+                    selected={form.company_group}
+                    onChange={(v) => setForm((f) => ({ ...f, company_group: v }))}
+                    placeholder="Select Company Group(s)..."
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Type *</label>
+                  <MultiSelectDropdown
+                    options={COMPANY_TYPES}
+                    selected={form.company_type}
+                    onChange={(v) => setForm((f) => ({ ...f, company_type: v }))}
+                    placeholder="Select type(s)..."
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label style={labelStyle}>Company Name *</label>
-                <input type="text" value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} style={inputStyle} placeholder="Company name" />
+                <input type="text" value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} style={inputStyle} placeholder="Enter company name" />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Sort Name</label>
-                <input type="text" value={form.sort_name} onChange={(e) => setForm((f) => ({ ...f, sort_name: e.target.value }))} style={inputStyle} placeholder="Name used for sorting/lookup" />
+
+              <div style={{ borderTop: '1px solid #e8ecf1', paddingTop: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Address</div>
+                {form.same_address_for_all ? (
+                  <AddressFields value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} />
+                ) : (
+                  <AddressBook value={form.addresses} onChange={(v) => setForm((f) => ({ ...f, addresses: v }))} />
+                )}
               </div>
-              <div>
-                <label style={labelStyle}>City</label>
-                <input type="text" value={form.company_city} onChange={(e) => setForm((f) => ({ ...f, company_city: e.target.value }))} style={inputStyle} placeholder="City" />
-              </div>
-              <div>
-                <label style={labelStyle}>State</label>
-                <select value={form.company_state} onChange={(e) => setForm((f) => ({ ...f, company_state: e.target.value }))} style={inputStyle}>
-                  <option value="">Select...</option>
-                  {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+
+              <SameAddressToggle
+                value={form.same_address_for_all}
+                onChange={handleToggleSameAddress}
+              />
+
+              <div style={{ borderTop: '1px solid #e8ecf1', paddingTop: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Primary Contact</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>First Name *</label>
+                    <input type="text" value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} style={inputStyle} placeholder="First name" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Last Name *</label>
+                    <input type="text" value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} style={inputStyle} placeholder="Last name" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Email *</label>
+                    <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={inputStyle} placeholder="email@example.com" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Phone *</label>
+                    <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={inputStyle} placeholder="(555) 555-5555" />
+                  </div>
+                </div>
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
               <button onClick={() => setModalOpen(false)} style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave} disabled={!form.company_name.trim()} style={{
+              <button onClick={handleSave} disabled={!isFormValid} style={{
                 padding: '7px 14px', fontSize: '12px', fontWeight: 600, color: '#fff',
-                background: form.company_name.trim() ? '#2979ff' : '#c8d1dc',
-                border: 'none', borderRadius: '6px', cursor: form.company_name.trim() ? 'pointer' : 'not-allowed',
+                background: isFormValid ? '#2979ff' : '#c8d1dc',
+                border: 'none', borderRadius: '6px', cursor: isFormValid ? 'pointer' : 'not-allowed',
               }}>Create Company</button>
             </div>
           </div>

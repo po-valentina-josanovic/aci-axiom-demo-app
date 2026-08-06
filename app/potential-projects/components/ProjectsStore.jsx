@@ -69,6 +69,14 @@ const COMPANY_TYPES = [
   'Architect',
 ];
 
+const COMPANY_GROUPS = ['ACI', 'API'];
+
+// Always-present address slots on every company
+const ADDRESS_TYPES = ['Main', 'Billing', 'Mailing', 'Shipping'];
+
+// Picklist for additional, company-specific offices/locations
+const EXTRA_ADDRESS_TYPES = ['Warehouse', 'Headquarters', 'Regional Office', 'Branch Office', 'Job Site', 'Other'];
+
 const LIQUIDATED_DAMAGES_PER = ['Per Day', 'Per Week', 'Per Month', 'Flat'];
 
 // --- Section 12.3: Trades from Vista PC Scope Trades Lookup ---
@@ -477,13 +485,40 @@ function saveCompetitors(competitors) {
 }
 
 // --- Client Companies (CRM) ---
+const SEED_CLIENT_COMPANIES = [
+  {
+    id: 'co-apex',
+    company_name: 'Apex Manufacturing',
+    company_city: 'Akron',
+    company_state: 'OH',
+    company_group: ['ACI', 'API'],
+    company_type: ['Client', 'Owner'],
+    addresses: [
+      { id: 'apex-addr-main', type: 'Main', street: '4820 Bridgeport Drive', city: 'Akron', state: 'OH', zip: '44311', country: 'US' },
+      { id: 'apex-addr-billing', type: 'Billing', street: '4820 Bridgeport Drive', city: 'Akron', state: 'OH', zip: '44311', country: 'US' },
+      { id: 'apex-addr-mailing', type: 'Mailing', street: 'PO Box 2290', city: 'Akron', state: 'OH', zip: '44309', country: 'US' },
+      { id: 'apex-addr-shipping', type: 'Shipping', street: '150 Industrial Parkway', city: 'Akron', state: 'OH', zip: '44312', country: 'US' },
+      { id: 'apex-addr-warehouse', type: 'Warehouse', street: '2210 Manufacturing Row', city: 'Canton', state: 'OH', zip: '44705', country: 'US' },
+    ],
+    vendor_enrollment: null,
+    created_at: '2026-01-10T08:00:00.000Z',
+  },
+];
+
 function loadClientCompanies() {
   if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem('master_client_companies');
-    return stored ? JSON.parse(stored) : [];
+    const existing = stored ? JSON.parse(stored) : [];
+    // Merge: add missing seeds, replace stale seeds with fresh data.
+    // Company records are looked up by company_name elsewhere in the app
+    // (names are the real identity here), so dedupe on that instead of id —
+    // otherwise a pre-existing record with the same name shadows the seed.
+    const seedNames = new Set(SEED_CLIENT_COMPANIES.map((s) => s.company_name));
+    const userCompanies = existing.filter((c) => !seedNames.has(c.company_name));
+    return [...userCompanies, ...SEED_CLIENT_COMPANIES];
   } catch {
-    return [];
+    return [...SEED_CLIENT_COMPANIES];
   }
 }
 
@@ -497,7 +532,8 @@ const SEED_CLIENT_CONTACTS = [
   { id: 'c1', name: 'Dr. Alan Reed', contact_role: 'Client', company_name: 'Metro Health', company_city: 'Columbus', company_state: 'OH', email: 'areed@metrohealth.org', phone: '(614) 555-0120', created_at: '2026-03-08T10:00:00.000Z' },
   { id: 'c2', name: 'Maria Torres', contact_role: 'Client', company_name: 'Lakeview ISD', company_city: 'Cleveland', company_state: 'OH', email: 'mtorres@lakeviewisd.edu', phone: '(216) 555-0340', created_at: '2026-03-20T09:00:00.000Z' },
   { id: 'c3', name: 'Jeff Conlin', contact_role: 'Architect', company_name: 'Conlin Architects', company_city: 'Cleveland', company_state: 'OH', email: 'jconlin@conlinarch.com', phone: '(216) 555-0188', created_at: '2026-03-20T09:05:00.000Z' },
-  { id: 'c4', name: 'Bill Hargrove', contact_role: 'Client', company_name: 'Apex Manufacturing', company_city: 'Akron', company_state: 'OH', email: 'bhargrove@apexmfg.com', phone: '(330) 555-0275', created_at: '2026-01-12T08:00:00.000Z' },
+  { id: 'c4', name: 'Bill Hargrove', contact_role: 'Client', roles: ['Client', 'Owner'], company_name: 'Apex Manufacturing', company_city: 'Akron', company_state: 'OH', email: 'bhargrove@apexmfg.com', phone: '(330) 555-0275', address_id: 'apex-addr-main', is_primary: true, created_at: '2026-01-12T08:00:00.000Z' },
+  { id: 'c4b', name: 'Rachel Kim', contact_role: 'Client', roles: ['Client'], company_name: 'Apex Manufacturing', company_city: 'Akron', company_state: 'OH', email: 'rkim@apexmfg.com', phone: '(330) 555-0298', address_id: 'apex-addr-warehouse', created_at: '2026-01-15T09:30:00.000Z' },
   { id: 'c5', name: 'Karen Walsh', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'kwalsh@riverfrontdev.com', phone: '(513) 555-0410', is_primary: true, created_at: '2026-04-01T11:00:00.000Z' },
   { id: 'c5b', name: 'Derek Holloway', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'dholloway@riverfrontdev.com', phone: '(513) 555-0421', created_at: '2026-04-01T11:05:00.000Z' },
   { id: 'c5c', name: 'Samantha Price', contact_role: 'Client', company_name: 'Riverfront Dev LLC', company_city: 'Cincinnati', company_state: 'OH', email: 'sprice@riverfrontdev.com', phone: '(513) 555-0433', created_at: '2026-04-02T08:30:00.000Z' },
@@ -514,16 +550,11 @@ function loadClientContacts() {
   if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem('master_client_contacts');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed.length > 0) {
-        // Merge any seed entries that don't already exist in stored data.
-        const storedIds = new Set(parsed.map((c) => c.id));
-        const missing = SEED_CLIENT_CONTACTS.filter((c) => !storedIds.has(c.id));
-        return missing.length > 0 ? [...parsed, ...missing] : parsed;
-      }
-    }
-    return [...SEED_CLIENT_CONTACTS];
+    const existing = stored ? JSON.parse(stored) : [];
+    // Merge: add missing seeds, replace stale seeds with fresh data
+    const seedIds = new Set(SEED_CLIENT_CONTACTS.map((s) => s.id));
+    const userContacts = existing.filter((c) => !seedIds.has(c.id));
+    return [...userContacts, ...SEED_CLIENT_CONTACTS];
   } catch {
     return [...SEED_CLIENT_CONTACTS];
   }
@@ -785,6 +816,9 @@ export function ProjectsProvider({ children }) {
       sort_name: data.sort_name || '',
       company_city: data.company_city || '',
       company_state: data.company_state || '',
+      company_group: data.company_group || [],
+      company_type: data.company_type || [],
+      addresses: data.addresses || [],
       vendor_enrollment: data.vendor_enrollment || null,
       created_at: new Date().toISOString(),
     };
@@ -810,6 +844,7 @@ export function ProjectsProvider({ children }) {
       company_city: data.company_city || '',
       company_state: data.company_state || '',
       contact_role: data.contact_role || 'Client',
+      address_id: data.address_id || null,
       created_at: now,
       updated_at: now,
     };
@@ -877,6 +912,9 @@ export function ProjectsProvider({ children }) {
         INSURANCE_PROGRAMS,
         CLIENT_TYPES,
         COMPANY_TYPES,
+        COMPANY_GROUPS,
+        ADDRESS_TYPES,
+        EXTRA_ADDRESS_TYPES,
         LIQUIDATED_DAMAGES_PER,
         TRADES,
         CONTACT_ROLES,
