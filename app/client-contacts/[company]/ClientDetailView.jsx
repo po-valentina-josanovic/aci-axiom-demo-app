@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useProjects } from '../../potential-projects/components/ProjectsStore';
+import ManageAddressesModal from '../components/ManageAddressesModal';
 
 const inputStyle = { width: '100%', border: '1px solid #c8d1dc', borderRadius: '6px', padding: '7px 10px', fontSize: '12px', outline: 'none', background: '#fff', color: '#1e293b' };
 const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', marginBottom: '4px' };
@@ -14,6 +15,34 @@ function getRoles(c) {
   if (Array.isArray(c.roles) && c.roles.length > 0) return c.roles;
   if (c.contact_role) return [c.contact_role];
   return [];
+}
+
+// Group addresses that share the same physical location so Main/Billing (or
+// Mailing/Shipping) collapse into one row when they were entered identically.
+function groupAddresses(addresses) {
+  const map = new Map();
+  (addresses || []).forEach((a) => {
+    const key = [a.street, a.city, a.state, a.zip, a.country].map((v) => (v || '').trim().toLowerCase()).join('|');
+    if (!map.has(key)) map.set(key, { ...a, types: [a.type] });
+    else map.get(key).types.push(a.type);
+  });
+  return Array.from(map.values());
+}
+
+const ADDRESS_TYPE_ICON_PATHS = {
+  Main: 'M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z',
+  Billing: 'M9 7h6m-6 4h6m-6 4h4M5 3h14a1 1 0 011 1v16l-3-2-3 2-3-2-3 2-3-2-3 2V4a1 1 0 011-1z',
+  Mailing: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  Shipping: 'M3 16V8a1 1 0 011-1h9v9M3 16h10m0 0h4.5a1 1 0 00.9-.55L20 12h-6.5m0-5v5M6.5 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm11 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+};
+const DEFAULT_ADDRESS_ICON_PATH = 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4';
+
+function AddressTypeIcon({ type }) {
+  return (
+    <svg style={{ width: '13px', height: '13px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={ADDRESS_TYPE_ICON_PATHS[type] || DEFAULT_ADDRESS_ICON_PATH} />
+    </svg>
+  );
 }
 
 // ── Role multi-select dropdown ──────────────────────────────────────────────
@@ -120,9 +149,10 @@ export default function ClientDetailView({ companyName }) {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', roles: [], is_primary: false });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', roles: [], is_primary: false, address_id: '' });
   const [enrollmentAlert, setEnrollmentAlert] = useState(null);
   const [overrideConfirm, setOverrideConfirm] = useState(null); // { pendingSave, currentPrimaryName, newName }
+  const [manageAddressesOpen, setManageAddressesOpen] = useState(false);
 
   // Contacts for this company — primary first, then alphabetical
   const companyContacts = useMemo(() =>
@@ -162,9 +192,30 @@ export default function ClientDetailView({ companyName }) {
     return result;
   }, [companyContacts, contactJobsMap]);
 
+  const companyAddresses = companyRecord?.addresses || [];
+  const addressGroups = useMemo(() => groupAddresses(companyAddresses), [companyAddresses]);
+
+  function addressLabel(addressId) {
+    const addr = companyAddresses.find((a) => a.id === addressId);
+    if (!addr) return null;
+    return `${addr.type} — ${[addr.city, addr.state].filter(Boolean).join(', ')}`;
+  }
+
+  function handleSaveAddresses(addresses) {
+    const main = addresses.find((a) => a.type === 'Main');
+    const updates = { addresses };
+    if (main?.city) updates.company_city = main.city;
+    if (main?.state) updates.company_state = main.state;
+    if (companyRecord) {
+      updateClientCompany(companyRecord.id, updates);
+    } else {
+      createClientCompany({ company_name: companyName, ...updates });
+    }
+  }
+
   function openAddModal() {
     setEditingId(null);
-    setForm({ name: '', email: '', phone: '', roles: [], is_primary: false });
+    setForm({ name: '', email: '', phone: '', roles: [], is_primary: false, address_id: '' });
     setModalOpen(true);
   }
 
@@ -176,6 +227,7 @@ export default function ClientDetailView({ companyName }) {
       phone: contact.phone || '',
       roles: getRoles(contact),
       is_primary: !!contact.is_primary,
+      address_id: contact.address_id || '',
     });
     setModalOpen(true);
   }
@@ -202,13 +254,14 @@ export default function ClientDetailView({ companyName }) {
   function commitSave({ firstRole, isClient, setPrimary }) {
     const name = form.name.trim();
     if (editingId) {
-      updateClientContact(editingId, { name, email: form.email, phone: form.phone, roles: form.roles, contact_role: firstRole });
+      updateClientContact(editingId, { name, email: form.email, phone: form.phone, roles: form.roles, contact_role: firstRole, address_id: form.address_id || null });
       if (setPrimary) setContactAsPrimary(editingId);
     } else {
       const created = createClientContact({
         name, email: form.email, phone: form.phone,
         roles: form.roles, contact_role: firstRole,
         company_name: companyName, company_city: companyCity, company_state: companyState,
+        address_id: form.address_id || null,
       });
       if (setPrimary && created?.id) setContactAsPrimary(created.id);
       if (isClient) {
@@ -350,6 +403,24 @@ export default function ClientDetailView({ companyName }) {
           {/* Summary Cards */}
           <div style={{ display: 'flex', gap: '12px' }}>
             <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                {(companyRecord?.company_group || []).length === 0 ? '—' : companyRecord.company_group.join(' / ')}
+              </div>
+              <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500, marginTop: '4px' }}>Company Group</div>
+            </div>
+            <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                {(companyRecord?.company_type || []).length === 0 ? (
+                  <span style={{ fontSize: '13px', color: '#8694a7' }}>—</span>
+                ) : (
+                  companyRecord.company_type.map((t) => (
+                    <span key={t} style={{ fontSize: '10px', fontWeight: 600, color: '#3a4a5c', border: '1px solid #c8d1dc', borderRadius: '10px', padding: '2px 8px' }}>{t}</span>
+                  ))
+                )}
+              </div>
+              <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500, marginTop: '4px' }}>Company Roles</div>
+            </div>
+            <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{companyContacts.length}</div>
               <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>Contacts</div>
             </div>
@@ -357,13 +428,57 @@ export default function ClientDetailView({ companyName }) {
               <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{companyProjects.length}</div>
               <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>Linked Projects</div>
             </div>
-            <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{companyCity || '—'}</div>
-              <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>City</div>
+          </div>
+
+          {/* Addresses */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>Addresses</div>
+              <button
+                onClick={() => setManageAddressesOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', fontSize: '11px', fontWeight: 600, color: '#fff', background: '#2979ff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                <svg style={{ width: '12px', height: '12px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Manage Addresses
+              </button>
             </div>
-            <div style={{ flex: 1, background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 18px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{companyState || '—'}</div>
-              <div style={{ fontSize: '11px', color: '#8694a7', fontWeight: 500 }}>State</div>
+            <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width: '70px' }}></th>
+                    <th style={thStyle}>Street</th>
+                    <th style={thStyle}>City</th>
+                    <th style={thStyle}>State</th>
+                    <th style={thStyle}>Zip Code</th>
+                    <th style={thStyle}>Country</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {addressGroups.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
+                        No addresses yet. Click "Manage Addresses" to add one.
+                      </td>
+                    </tr>
+                  ) : (
+                    addressGroups.map((addr, idx) => (
+                      <tr key={idx} style={{ background: '#fff' }}>
+                        <td style={tdStyle}>
+                          <div style={{ display: 'flex', gap: '5px', color: '#5a6577' }}>
+                            {addr.types.map((t) => <span key={t} title={t}><AddressTypeIcon type={t} /></span>)}
+                          </div>
+                        </td>
+                        <td style={{ ...tdStyle, color: '#1e293b' }}>{addr.street}</td>
+                        <td style={tdStyle}>{addr.city}</td>
+                        <td style={tdStyle}>{addr.state}</td>
+                        <td style={tdStyle}>{addr.zip}</td>
+                        <td style={tdStyle}>{addr.country}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -376,6 +491,7 @@ export default function ClientDetailView({ companyName }) {
                   <tr>
                     <th style={thStyle}>Name</th>
                     <th style={thStyle}>Role</th>
+                    <th style={thStyle}>Address</th>
                     <th style={thStyle}>Email</th>
                     <th style={thStyle}>Phone</th>
                     <th style={thStyle}>Projects</th>
@@ -385,7 +501,7 @@ export default function ClientDetailView({ companyName }) {
                 <tbody>
                   {companyContacts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
+                      <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>
                         No contacts yet. Click "Add Contact" to create one.
                       </td>
                     </tr>
@@ -413,6 +529,9 @@ export default function ClientDetailView({ companyName }) {
                               <span key={r} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{r}</span>
                             ))}
                           </div>
+                        </td>
+                        <td style={{ ...tdStyle, color: '#5a6577' }}>
+                          {addressLabel(c.address_id) || <span style={{ fontSize: '10px', color: '#c8d1dc' }}>—</span>}
                         </td>
                         <td style={{ ...tdStyle, color: '#5a6577' }}>{c.email}</td>
                         <td style={{ ...tdStyle, color: '#5a6577' }}>{c.phone}</td>
@@ -597,6 +716,15 @@ export default function ClientDetailView({ companyName }) {
                     placeholder="(555) 555-5555"
                   />
                 </div>
+                <div>
+                  <label style={labelStyle}>Address</label>
+                  <select value={form.address_id} onChange={(e) => setForm((f) => ({ ...f, address_id: e.target.value }))} style={inputStyle}>
+                    <option value="">Select address...</option>
+                    {companyAddresses.map((a) => (
+                      <option key={a.id} value={a.id}>{a.type} — {a.street}, {a.city}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <PrimaryToggle
                 value={form.is_primary}
@@ -622,6 +750,13 @@ export default function ClientDetailView({ companyName }) {
           </div>
         </div>
       )}
+
+      <ManageAddressesModal
+        open={manageAddressesOpen}
+        onClose={() => setManageAddressesOpen(false)}
+        company={companyRecord}
+        onSave={handleSaveAddresses}
+      />
     </>
   );
 }
