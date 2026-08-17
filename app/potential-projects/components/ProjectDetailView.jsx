@@ -243,7 +243,7 @@ export default function ProjectDetailView({ projectId }) {
     PROOF_TYPES, INSURANCE_PROGRAMS, CLIENT_TYPES, COMPANY_TYPES,
     LIQUIDATED_DAMAGES_PER, TRADES,
     CONSTRUCTION_TYPES, ESTIMATORS_LIST, USERS_LIST,
-    clientContacts,
+    clientContacts, COPY_GROUPS,
   } = useProjects();
   const router = useRouter();
   const project = getProject(projectId);
@@ -277,6 +277,10 @@ export default function ProjectDetailView({ projectId }) {
 
   // Delete confirmations
   const [pendingDelete, setPendingDelete] = useState(null); // { type, id, label }
+
+  // One-time notice after this project was created as a copy
+  const [showCopyNotice, setShowCopyNotice] = useState(false);
+  const [copyNoticeOpen, setCopyNoticeOpen] = useState(false);
 
   // Accordion sections
   const [openSections, setOpenSections] = useState(new Set(['overview']));
@@ -336,6 +340,20 @@ export default function ProjectDetailView({ projectId }) {
   // Unsaved-changes navigation guard — blocks tab close/reload when dirty
   // and opens a custom Save/Discard/Cancel modal for in-app navigation.
   const { confirmLeave, promptOpen, dismiss, proceed } = useUnsavedChangesPrompt(dirty, router);
+
+  // Show the copy notice once, right after landing here from the create modal.
+  // The signal is removed on read, so revisiting the project never shows it again.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('copied_project_notice');
+      if (!stored) return;
+      const data = JSON.parse(stored);
+      if (data.projectId === projectId) {
+        setShowCopyNotice(true);
+        localStorage.removeItem('copied_project_notice');
+      }
+    } catch { /* ignore */ }
+  }, [projectId]);
 
   // Auto-open contacts accordion when returning from Client Contacts CRM
   useEffect(() => {
@@ -781,6 +799,22 @@ export default function ProjectDetailView({ projectId }) {
               {isBidTracer && (
                 <span style={{ fontSize: '10px', background: '#fff3cd', color: '#856404', padding: '1px 6px', borderRadius: '12px', fontWeight: 600 }}>Bid Tracer (Read-Only)</span>
               )}
+              {form.copied_from?.id && (
+                <Link
+                  href={`/potential-projects/${form.copied_from.id}`}
+                  title={`Started as a copy of ${form.copied_from.project_name}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px',
+                    background: '#e7f1ff', color: '#2979ff', padding: '1px 7px',
+                    borderRadius: '12px', fontWeight: 600, textDecoration: 'none',
+                  }}
+                >
+                  <svg style={{ width: '10px', height: '10px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copied from {form.copied_from.potential_project_number}
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -872,6 +906,73 @@ export default function ProjectDetailView({ projectId }) {
             </div>
           </div>
         )}
+
+        {/* Copy notice — shown once, immediately after creating this project as a copy */}
+        {showCopyNotice && form.copied_from && (() => {
+          const copied = COPY_GROUPS.filter((i) => (form.copied_from.sections || []).includes(i.key));
+          const needsReview = copied.filter((i) => i.caution).map((i) => i.label);
+          // Group by section, keeping the detail-page order COPY_GROUPS was built in.
+          const bySection = [];
+          copied.forEach((item) => {
+            const last = bySection[bySection.length - 1];
+            if (last && last.label === item.sectionLabel) last.items.push(item);
+            else bySection.push({ label: item.sectionLabel, items: [item] });
+          });
+          return (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', background: '#f4f9ff', border: '1px solid #cfe2ff', borderRadius: '8px' }}>
+              <svg style={{ width: '15px', height: '15px', color: '#2979ff', flexShrink: 0, marginTop: '1px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '12px', color: '#1e293b', fontWeight: 600 }}>
+                  {copied.length} item{copied.length !== 1 ? 's' : ''} copied from{' '}
+                  <Link href={`/potential-projects/${form.copied_from.id}`} style={{ color: '#2979ff', textDecoration: 'none', fontFamily: 'monospace' }}>
+                    {form.copied_from.potential_project_number}
+                  </Link>
+                </div>
+                <div style={{ fontSize: '11px', color: '#5a6577', marginTop: '2px', lineHeight: 1.45 }}>
+                  {needsReview.length > 0
+                    ? <>Worth a check before you save: <strong style={{ color: '#a36100' }}>{needsReview.join(', ')}</strong>.</>
+                    : 'Everything copied is editable — nothing is locked to the source project.'}
+                </div>
+
+                <button
+                  onClick={() => setCopyNoticeOpen((v) => !v)}
+                  style={{ marginTop: '5px', fontSize: '11px', fontWeight: 600, color: '#2979ff', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                >
+                  {copyNoticeOpen ? 'Hide what was copied ▲' : 'See what was copied ▼'}
+                </button>
+
+                {copyNoticeOpen && (
+                  <div style={{ marginTop: '7px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {bySection.map((section) => (
+                      <div key={section.label} style={{ display: 'flex', gap: '8px', fontSize: '11px', lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 600, color: '#3a4a5c', flexShrink: 0, width: '150px' }}>{section.label}</span>
+                        <span style={{ color: '#5a6577' }}>
+                          {section.items.map((item, idx) => (
+                            <span key={item.key}>
+                              {idx > 0 && ', '}
+                              <span style={item.caution ? { color: '#a36100', fontWeight: 600 } : undefined}>{item.label}</span>
+                            </span>
+                          ))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowCopyNotice(false)}
+                title="Dismiss"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8694a7', padding: '2px', display: 'flex', flexShrink: 0 }}
+              >
+                <svg style={{ width: '15px', height: '15px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Project Status */}
         <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #d9dfe7', padding: '14px 20px' }}>
@@ -1716,9 +1817,12 @@ export default function ProjectDetailView({ projectId }) {
               })()}
             </div>
 
-            {/* Contract Summary Data (was: Request Link Data) */}
-            <fieldset style={{ border: '1px solid #c8d1dc', borderRadius: '8px', padding: '12px 16px', margin: 0 }}>
-              <legend style={{ fontSize: '11px', fontWeight: 600, color: '#1e293b', padding: '0 4px' }}>Contract Summary Data</legend>
+          </div>
+        </CollapsibleSection>
+
+        {/* 8. Contract Summary Data (was a fieldset inside Bid Details) */}
+        <CollapsibleSection title="Contract Summary Data" isOpen={openSections.has('contract-summary')} onToggle={() => toggleSection('contract-summary')}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', paddingTop: '8px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '4px' }}>
                 {[
                   { key: 'sales_tax_exempt', label: 'Sales Tax Exempt' },
@@ -1902,11 +2006,10 @@ export default function ProjectDetailView({ projectId }) {
                   </div>
                 )}
               </div>
-            </fieldset>
           </div>
         </CollapsibleSection>
 
-        {/* 8. Award Details (Section 13) */}
+        {/* 9. Award Details (Section 13) */}
         <CollapsibleSection title="Award Details" isOpen={openSections.has('award')} onToggle={() => toggleSection('award')}>
           <div style={gridStyle}>
             {projectClients.length > 0 && (
@@ -1979,7 +2082,7 @@ export default function ProjectDetailView({ projectId }) {
           </div>
         </CollapsibleSection>
 
-        {/* 9. Loss Details (Section 14) */}
+        {/* 10. Loss Details (Section 14) */}
         <CollapsibleSection title="Loss Details" isOpen={openSections.has('loss')} onToggle={() => toggleSection('loss')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Feedback + Date of Notice */}
