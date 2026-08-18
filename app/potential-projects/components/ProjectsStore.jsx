@@ -169,6 +169,386 @@ function generateProjectNumber(division, projects) {
   return `${prefix}${nextSeq}-${CURRENT_USER.initials}`;
 }
 
+// --- Copy From Existing Project -------------------------------------------
+// Lets a user start a new pursuit from a similar past one. Two layers here:
+//
+//  1. COPY_SECTIONS — mirrors the nine sections of the detail page, in the same
+//     order. Every field is its own checkbox and nothing is ever blocked; the
+//     risky ones simply start unselected and carry a "review" chip.
+//  2. Generated fresh, so not offered: project number, created by, created/updated
+//     dates, data source, visited stages and the copy provenance itself.
+//
+// Each item writes into one of two buckets:
+//   `form`   — fields the create modal renders, so the user reviews them before saving
+//   `record` — deeper sections merged into the new project on create
+const clone = (val) => (val === undefined ? val : JSON.parse(JSON.stringify(val)));
+
+// Local MM-DD-YYYY for item previews (avoids importing the formatters module here).
+function formatMDY(val) {
+  if (!val || typeof val !== 'string') return '';
+  const [y, m, d] = val.split('-');
+  return y && m && d ? `${m}-${d}-${y}` : val;
+}
+
+const usd = (val) => (val === '' || val === null || val === undefined || isNaN(Number(val))
+  ? ''
+  : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(val)));
+
+// End sector normally lives on contract_details, but records persisted before it
+// was added to the create modal can carry it at the top level.
+const readEndSector = (p) => p.contract_details?.end_sector || p.end_sector || '';
+
+// Copies the listed keys from `source` into out.record[sectionKey].
+function into(out, sectionKey, source, keys) {
+  if (!source) return;
+  out.record[sectionKey] = out.record[sectionKey] || {};
+  keys.forEach((k) => {
+    if (source[k] !== undefined) out.record[sectionKey][k] = clone(source[k]);
+  });
+}
+
+// Row ids are scoped to a project, so they carry over as-is. That keeps
+// cross-references intact — client_data is keyed by client slot id, and
+// award_details.awarded_client_id points at one.
+const list = (arr) => clone(arr || []);
+const count = (arr) => (arr || []).length;
+const names = (arr, key = 'company_name') => (arr || []).map((x) => x[key] || x.name || '').filter(Boolean).slice(0, 3).join(', ');
+
+// Every copyable piece of a project, organized by the sections of the detail
+// page so the picker reads like the form the user already knows. Each item is
+// an independent checkbox — `defaultOn` only sets the starting selection.
+const COPY_SECTIONS = [
+  {
+    key: 'overview',
+    label: 'Project Overview',
+    items: [
+      { key: 'ov_division', label: 'Division', formFields: ['division'], defaultOn: true,
+        preview: (p) => (p.division ? `Div ${p.division}` : '') },
+      { key: 'ov_description', label: 'Description', formFields: ['description'], defaultOn: true,
+        preview: (p) => p.description || '' },
+      { key: 'ov_probability', label: 'Probability %', formFields: ['probability_percent'], defaultOn: true,
+        preview: (p) => (p.probability_percent === '' || p.probability_percent === undefined ? '' : `${p.probability_percent}%`) },
+      { key: 'ov_bid_date', label: 'Bid Date', formFields: ['bid_date'], defaultOn: false, caution: true,
+        preview: (p) => formatMDY(p.bid_date) },
+      { key: 'ov_start_date', label: 'Est. Project Start', formFields: ['estimated_project_start'], defaultOn: false, caution: true,
+        preview: (p) => formatMDY(p.estimated_project_start) },
+      { key: 'ov_type', label: 'Project Type', formFields: ['project_type'], defaultOn: true,
+        preview: (p) => p.project_type || '' },
+      { key: 'ov_nda', label: 'NDA', formFields: ['nda'], defaultOn: true,
+        preview: (p) => p.nda || '' },
+      { key: 'ov_end_sector', label: 'End Sector', formFields: ['end_sector'], defaultOn: true,
+        preview: (p) => readEndSector(p) },
+      { key: 'ov_internal_poc', label: 'Internal POC', defaultOn: true,
+        hint: 'Otherwise defaults to you',
+        preview: (p) => p.internal_poc || p.created_by || '',
+        apply: (p, out) => {
+          const poc = p.internal_poc || p.created_by || '';
+          if (poc) out.record.internal_poc = poc;   // never blank out the default
+        } },
+      { key: 'ov_stage', label: 'Status / Stage', formFields: ['project_stage'], defaultOn: false,
+        hint: 'Otherwise starts at Preliminary',
+        preview: (p) => p.project_stage || '' },
+    ],
+  },
+  {
+    key: 'site',
+    label: 'Site Location',
+    items: [
+      { key: 'site_street', label: 'Street', defaultOn: true,
+        preview: (p) => p.site_location?.street || '',
+        apply: (p, out) => into(out, 'site_location', p.site_location, ['street']) },
+      { key: 'site_city', label: 'City', defaultOn: true,
+        preview: (p) => p.site_location?.city || '',
+        apply: (p, out) => into(out, 'site_location', p.site_location, ['city']) },
+      { key: 'site_state', label: 'State', defaultOn: true,
+        preview: (p) => p.site_location?.state || '',
+        apply: (p, out) => into(out, 'site_location', p.site_location, ['state']) },
+      { key: 'site_zip', label: 'Zip Code', defaultOn: true,
+        preview: (p) => p.site_location?.zip_code || '',
+        apply: (p, out) => into(out, 'site_location', p.site_location, ['zip_code']) },
+      { key: 'site_country', label: 'Country', defaultOn: true,
+        preview: (p) => p.site_location?.country || '',
+        apply: (p, out) => into(out, 'site_location', p.site_location, ['country']) },
+    ],
+  },
+  {
+    key: 'contract',
+    label: 'Contract Details',
+    items: [
+      { key: 'ct_square_footage', label: 'Square Footage', defaultOn: true,
+        preview: (p) => p.contract_details?.square_footage || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['square_footage']) },
+      { key: 'ct_contract_type', label: 'Contract Type', defaultOn: true,
+        preview: (p) => p.contract_details?.contract_type || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['contract_type']) },
+      { key: 'ct_client_type', label: 'Client Type', defaultOn: true,
+        preview: (p) => p.contract_details?.client_type || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['client_type']) },
+      { key: 'ct_construction_type', label: 'Construction Type', defaultOn: true,
+        preview: (p) => p.contract_details?.construction_type || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['construction_type']) },
+      { key: 'ct_sales_tax', label: 'Sales Tax Exempt', defaultOn: true,
+        preview: (p) => p.contract_details?.sales_tax_exempt || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['sales_tax_exempt']) },
+      { key: 'ct_insurance', label: 'Insurance Program', defaultOn: true,
+        preview: (p) => p.contract_details?.insurance_program || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['insurance_program']) },
+      { key: 'ct_prime_or_sub', label: 'Prime or Sub', defaultOn: true,
+        preview: (p) => p.contract_details?.prime_or_sub || '',
+        apply: (p, out) => into(out, 'contract_details', p.contract_details, ['prime_or_sub']) },
+    ],
+  },
+  {
+    key: 'companies',
+    label: 'Companies and Contacts',
+    items: [
+      { key: 'cc_clients', label: 'Clients', defaultOn: true,
+        hint: 'Client companies and their client type',
+        count: (p) => count(p.client_slots),
+        preview: (p) => names(p.client_slots),
+        apply: (p, out) => { out.record.client_slots = list(p.client_slots); } },
+      { key: 'cc_owner', label: 'Owner', defaultOn: true,
+        preview: (p) => p.owner_slot?.company_name || '',
+        apply: (p, out) => { out.record.owner_slot = clone(p.owner_slot || { company_name: '' }); } },
+      { key: 'cc_competitors', label: 'Competitors', defaultOn: true,
+        count: (p) => count(p.competitor_slots),
+        preview: (p) => names(p.competitor_slots),
+        apply: (p, out) => { out.record.competitor_slots = list(p.competitor_slots); } },
+      { key: 'cc_additional', label: 'Additional Companies', defaultOn: true,
+        count: (p) => count(p.additional_companies),
+        preview: (p) => names(p.additional_companies),
+        apply: (p, out) => { out.record.additional_companies = list(p.additional_companies); } },
+      { key: 'cc_contacts', label: 'Contacts', defaultOn: true,
+        hint: 'Contacts and internal team assignments, with their roles',
+        count: (p) => count(p.contacts),
+        preview: (p) => names(p.contacts, 'name'),
+        apply: (p, out) => { out.record.contacts = list(p.contacts); } },
+    ],
+  },
+  {
+    key: 'notes',
+    label: 'Notes',
+    note: 'Written about the previous project.',
+    items: [
+      { key: 'nt_notes', label: 'Notes', defaultOn: false, caution: true,
+        hint: 'Carried over with their original author and timestamp',
+        count: (p) => count(p.notes),
+        preview: (p) => (count(p.notes) ? `${count(p.notes)} note${count(p.notes) !== 1 ? 's' : ''} from the old project` : ''),
+        apply: (p, out) => { out.record.notes = list(p.notes); } },
+    ],
+  },
+  {
+    key: 'budget',
+    label: 'Budget Details',
+    note: 'Tied to the previous pursuit.',
+    items: [
+      { key: 'bg_estimation_number', label: 'Estimation Number', defaultOn: false, caution: true,
+        preview: (p) => p.estimation_number || '',
+        apply: (p, out) => { out.record.estimation_number = p.estimation_number || ''; } },
+      { key: 'bg_client_data', label: 'Per-Client Estimation Numbers', defaultOn: false, caution: true,
+        hint: 'Only applies when the client list is copied too',
+        count: (p) => Object.keys(p.client_data || {}).length,
+        preview: (p) => (Object.keys(p.client_data || {}).length ? 'Per-client estimation numbers' : ''),
+        apply: (p, out) => { out.record.client_data = clone(p.client_data || {}); } },
+      { key: 'bg_revisions', label: 'Budget Revisions', defaultOn: false, caution: true,
+        hint: 'The revision history of the old budget',
+        count: (p) => count(p.budget_revisions),
+        preview: (p) => (count(p.budget_revisions) ? `${count(p.budget_revisions)} revision${count(p.budget_revisions) !== 1 ? 's' : ''}` : ''),
+        apply: (p, out) => { out.record.budget_revisions = list(p.budget_revisions); } },
+    ],
+  },
+  {
+    key: 'bid',
+    label: 'Bid Details',
+    items: [
+      { key: 'bid_pricing', label: 'Cost of Work / Margin / Total Price', defaultOn: false, caution: true,
+        hint: 'Copied together so Total Price stays consistent',
+        preview: (p) => [usd(p.bid_details?.cost_of_work),
+          p.bid_details?.gross_margin_percent && `${p.bid_details.gross_margin_percent}% GM`].filter(Boolean).join(' · '),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['cost_of_work', 'gross_margin_percent', 'total_price']) },
+      { key: 'bid_total_bid_cost', label: 'Total Bid Cost', defaultOn: false, caution: true,
+        preview: (p) => usd(p.bid_details?.total_bid_cost),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['total_bid_cost']) },
+      { key: 'bid_end_date', label: 'Project End Date', defaultOn: false, caution: true,
+        preview: (p) => formatMDY(p.bid_details?.project_end_date),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['project_end_date']) },
+      { key: 'bid_cost_breakdown', label: 'Cost Breakdown', defaultOn: false, caution: true,
+        hint: 'Labor, hours, material, equipment, subcontract, other',
+        preview: (p) => {
+          const cb = p.bid_details?.cost_breakdown || {};
+          const filled = Object.values(cb).filter((v) => v !== '' && v !== null && v !== undefined).length;
+          return filled ? `${filled} line${filled !== 1 ? 's' : ''} filled` : '';
+        },
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['cost_breakdown']) },
+      { key: 'bid_trades', label: 'Estimators & Trades', defaultOn: true,
+        hint: 'Each row carries its estimator, trade, dates, hours and cost',
+        count: (p) => count(p.bid_details?.trades),
+        preview: (p) => (p.bid_details?.trades || []).map((t) => t.name || t.estimator).filter(Boolean).slice(0, 3).join(', '),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['trades']) },
+      { key: 'bid_year_burns', label: 'Year Burns', defaultOn: false, caution: true,
+        hint: 'Must total 100% — recheck against the new schedule',
+        count: (p) => count(p.bid_details?.year_burns),
+        preview: (p) => (count(p.bid_details?.year_burns) ? 'Yearly burn percentages' : ''),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['year_burns']) },
+    ],
+  },
+  {
+    // Its own accordion on the detail page, between Bid Details and Award Details.
+    key: 'contract_summary',
+    label: 'Contract Summary Data',
+    items: [
+      { key: 'cs_toggles', label: 'Compliance Toggles', defaultOn: true,
+        hint: 'Sales tax exempt, sub-tier lien waivers, certified payroll, prevailing wage, bid bond, bonded',
+        preview: (p) => `${['sales_tax_exempt', 'sub_tier_lien_waivers', 'certified_payroll', 'prevailing_wage_scale', 'bid_bond_req', 'bonded']
+          .filter((k) => p.bid_details?.[k] === 'Yes').length} of 6 set to Yes`,
+        apply: (p, out) => into(out, 'bid_details', p.bid_details,
+          ['sales_tax_exempt', 'sub_tier_lien_waivers', 'certified_payroll', 'prevailing_wage_scale', 'bid_bond_req', 'bonded']) },
+      { key: 'cs_liquidated', label: 'Liquidated Damages', defaultOn: false, caution: true,
+        preview: (p) => (p.bid_details?.liquidated_damages_required
+          ? [usd(p.bid_details?.liquidated_damages_amount), p.bid_details?.liquidated_damages_per].filter(Boolean).join(' ') || 'Required'
+          : ''),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['liquidated_damages_required', 'liquidated_damages_amount', 'liquidated_damages_per']) },
+      { key: 'cs_proof', label: 'Proof / Document to Proceed', defaultOn: true,
+        preview: (p) => [p.bid_details?.proof_to_proceed, p.bid_details?.document_to_proceed].filter(Boolean).join(' · '),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['proof_to_proceed', 'document_to_proceed']) },
+      { key: 'cs_document_id', label: 'Document ID', defaultOn: false, caution: true,
+        hint: 'PO or reference number from the old job',
+        preview: (p) => p.bid_details?.document_id || '',
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['document_id']) },
+      { key: 'cs_retainage', label: 'Retainage %', defaultOn: true,
+        preview: (p) => (p.bid_details?.retainage_required
+          ? (p.bid_details?.retainage_pct ? `${p.bid_details.retainage_pct}%` : 'Required')
+          : ''),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['retainage_required', 'retainage_pct']) },
+      { key: 'cs_warranty', label: 'Warranty (months)', defaultOn: true,
+        preview: (p) => (p.bid_details?.warranty_months ? `${p.bid_details.warranty_months} months` : ''),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['warranty_months']) },
+      { key: 'cs_gc_bill_day', label: 'GC Bill Day', defaultOn: true,
+        preview: (p) => (p.bid_details?.gc_bill_day ? `Day ${p.bid_details.gc_bill_day}` : ''),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['gc_bill_day']) },
+      { key: 'cs_suggested_job_no', label: 'Suggested Job No', defaultOn: false, caution: true,
+        preview: (p) => p.bid_details?.suggested_job_no || '',
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['suggested_job_no']) },
+      { key: 'cs_documents', label: 'Documents', defaultOn: false, caution: true,
+        hint: 'File references attached to the old bid',
+        count: (p) => count(p.bid_details?.documents),
+        preview: (p) => (count(p.bid_details?.documents) ? `${count(p.bid_details.documents)} document${count(p.bid_details.documents) !== 1 ? 's' : ''}` : ''),
+        apply: (p, out) => into(out, 'bid_details', p.bid_details, ['documents']) },
+    ],
+  },
+  {
+    key: 'award',
+    label: 'Award Details',
+    note: 'The previous pursuit’s outcome.',
+    items: [
+      { key: 'aw_client', label: 'Awarded Client', defaultOn: false, caution: true,
+        preview: (p) => (p.award_details?.awarded_client_id ? 'Selected client' : ''),
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['awarded_client_id']) },
+      { key: 'aw_date', label: 'Awarded Date', defaultOn: false, caution: true,
+        preview: (p) => formatMDY(p.award_details?.awarded_date),
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['awarded_date']) },
+      { key: 'aw_amount', label: 'Awarded Amount', defaultOn: false, caution: true,
+        preview: (p) => usd(p.award_details?.awarded_amount),
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['awarded_amount']) },
+      { key: 'aw_cost', label: 'Awarded Cost', defaultOn: false, caution: true,
+        preview: (p) => usd(p.award_details?.awarded_cost),
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['awarded_cost']) },
+      { key: 'aw_margin', label: 'Awarded Margin %', defaultOn: false, caution: true,
+        preview: (p) => (p.award_details?.awarded_margin_percent ? `${p.award_details.awarded_margin_percent}%` : ''),
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['awarded_margin_percent']) },
+      { key: 'aw_pm', label: 'Project Manager', defaultOn: false,
+        preview: (p) => p.award_details?.project_manager || '',
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['project_manager']) },
+      { key: 'aw_super', label: 'Superintendent', defaultOn: false,
+        preview: (p) => p.award_details?.superintendent || '',
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['superintendent']) },
+      { key: 'aw_sales', label: 'Commissioned Sales Person', defaultOn: false,
+        preview: (p) => p.award_details?.commissioned_sales_person || '',
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['commissioned_sales_person']) },
+      { key: 'aw_job_no', label: 'Suggested Job No', defaultOn: false, caution: true,
+        preview: (p) => p.award_details?.suggested_job_no || '',
+        apply: (p, out) => into(out, 'award_details', p.award_details, ['suggested_job_no']) },
+    ],
+  },
+  {
+    key: 'loss',
+    label: 'Loss Details',
+    note: 'The previous pursuit’s outcome.',
+    items: [
+      { key: 'ls_feedback', label: 'Lost Feedback', defaultOn: false, caution: true,
+        preview: (p) => p.loss_details?.feedback || '',
+        apply: (p, out) => into(out, 'loss_details', p.loss_details, ['feedback']) },
+      { key: 'ls_notice', label: 'Date of Notice', defaultOn: false, caution: true,
+        preview: (p) => formatMDY(p.loss_details?.date_of_notice),
+        apply: (p, out) => into(out, 'loss_details', p.loss_details, ['date_of_notice']) },
+      { key: 'ls_competitors', label: 'Competitors', defaultOn: false, caution: true,
+        hint: 'Competitor names and their bid amounts',
+        count: (p) => count(p.loss_details?.competitors),
+        preview: (p) => names(p.loss_details?.competitors, 'name'),
+        apply: (p, out) => into(out, 'loss_details', p.loss_details, ['competitors']) },
+    ],
+  },
+];
+
+// Flat list of every copyable item, used to build payloads.
+const COPY_GROUPS = COPY_SECTIONS.flatMap((section) =>
+  section.items.map((item) => ({ ...item, sectionKey: section.key, sectionLabel: section.label }))
+);
+
+// Items that map straight onto a create-modal field get a generic `apply` so the
+// value lands in the `form` bucket and the user reviews it before saving.
+const FORM_FIELD_SOURCES = {
+  division: (p) => p.division || '',
+  project_type: (p) => p.project_type || '',
+  end_sector: (p) => readEndSector(p),
+  nda: (p) => p.nda || '',
+  description: (p) => p.description || '',
+  probability_percent: (p) => (p.probability_percent ?? ''),
+  project_stage: (p) => p.project_stage || '',
+  bid_date: (p) => p.bid_date || '',
+  estimated_project_start: (p) => p.estimated_project_start || '',
+};
+
+COPY_GROUPS.forEach((item) => {
+  if (item.apply || !item.formFields) return;
+  item.apply = (p, out) => {
+    item.formFields.forEach((field) => {
+      const read = FORM_FIELD_SOURCES[field];
+      if (read) out.form[field] = read(p);
+    });
+  };
+});
+
+// Form fields each item owns, so the modal can prefill and clear them as
+// items are toggled on and off.
+const COPY_GROUP_FORM_FIELDS = COPY_GROUPS.reduce((acc, item) => {
+  if (item.formFields) acc[item.key] = item.formFields;
+  return acc;
+}, {});
+
+// Builds the copy payload for a source project and a set of enabled group keys.
+// Returns { form, record } — never includes identity, notes or outcome data.
+function buildCopyPayload(source, enabledKeys) {
+  const out = { form: {}, record: {} };
+  if (!source) return out;
+  COPY_GROUPS.forEach((g) => {
+    if (enabledKeys.includes(g.key)) g.apply(source, out);
+  });
+  return out;
+}
+
+function deepMergeCopied(base, patch) {
+  const result = { ...base };
+  Object.keys(patch).forEach((key) => {
+    const val = patch[key];
+    const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    result[key] = isPlainObject(val) && isPlainObject(base[key])
+      ? deepMergeCopied(base[key], val)
+      : clone(val);
+  });
+  return result;
+}
+
 const SEED_PROJECTS = [
   {
     id: 'seed-001',
@@ -603,7 +983,10 @@ export function ProjectsProvider({ children }) {
   }, [clientCompanies, loaded]);
 
   // --- Project CRUD ---
-  const createProject = useCallback((data) => {
+  // `copied` is the { record } half of buildCopyPayload — deeper sections pulled
+  // from an existing project. Merged over the blank defaults below so anything
+  // the copy doesn't carry still starts empty.
+  const createProject = useCallback((data, copied = null) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const projectNumber = generateProjectNumber(data.division, projects);
@@ -730,10 +1113,15 @@ export function ProjectsProvider({ children }) {
 
       // Track which stages have been visited
       visited_stages: [data.project_stage],
+
+      // Provenance when this project was started from an existing one (Section 4.c)
+      copied_from: data.copied_from || null,
     };
 
-    setProjects((prev) => [newProject, ...prev]);
-    return newProject;
+    const finalProject = copied ? deepMergeCopied(newProject, copied) : newProject;
+
+    setProjects((prev) => [finalProject, ...prev]);
+    return finalProject;
   }, [projects]);
 
   const updateProject = useCallback((id, updates) => {
@@ -922,6 +1310,11 @@ export function ProjectsProvider({ children }) {
         PROJECT_SIZE_UM,
         ESTIMATORS_LIST,
         USERS_LIST,
+        // Copy-from-existing-project helpers (Section 4.c)
+        COPY_SECTIONS,
+        COPY_GROUPS,
+        COPY_GROUP_FORM_FIELDS,
+        buildCopyPayload,
       }}
     >
       {children}

@@ -64,7 +64,7 @@ const tdStyle = {
 
 const CHUNK_SIZE = 50;
 
-export default function ProjectListTable({ onVisibleRowsChange }) {
+export default function ProjectListTable({ onVisibleRowsChange, onDuplicate }) {
   const { projects, STAGES, PROJECT_TYPES, DIVISIONS, END_SECTORS, CURRENT_USER } = useProjects();
 
   // Live filters — update instantly without Apply
@@ -351,12 +351,16 @@ export default function ProjectListTable({ onVisibleRowsChange }) {
                     </span>
                   </th>
                 ))}
+                {/* Row actions \u2014 not part of COLUMNS so it stays out of sorting and export. */}
+                {onDuplicate && (
+                  <th style={{ ...thStyle, width: '44px', cursor: 'default', textAlign: 'center' }}>Copy</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={COLUMNS.length} style={{ padding: '48px 16px', textAlign: 'center', color: '#8694a7', fontSize: '13px' }}>
+                  <td colSpan={COLUMNS.length + (onDuplicate ? 1 : 0)} style={{ padding: '48px 16px', textAlign: 'center', color: '#8694a7', fontSize: '13px' }}>
                     {projects.length === 0
                       ? 'No projects yet. Click "New Potential Project" to create one.'
                       : 'No projects match your filters.'}
@@ -415,6 +419,24 @@ export default function ProjectListTable({ onVisibleRowsChange }) {
                       <td style={{ ...tdStyle, fontSize: '11px', color: '#5a6577' }}>
                         {formatDateMDY(p.created_at)}
                       </td>
+                      {onDuplicate && (
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => onDuplicate(p.id)}
+                            title={`Create a new project by copying ${p.potential_project_number}`}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              padding: '3px', color: '#8694a7', background: 'none',
+                              border: 'none', cursor: 'pointer', borderRadius: '4px',
+                            }}
+                          >
+                            <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })
