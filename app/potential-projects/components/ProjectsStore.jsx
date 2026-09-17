@@ -811,6 +811,456 @@ const SEED_PROJECTS = [
     clients: [{ id: 'bt-cl2', name: 'Mercy Health System' }],
     awarded_client_id: 'bt-cl2',
   },
+  {
+    id: 'seed-mas-hvac-test',
+
+    // Merge-companies test fixture: this project already has BOTH duplicate
+    // company names on it — one as a client_slot/contact pair, the other as a
+    // second client_slot/contact pair that also happens to be the awarded client.
+    // Merging "MAS HVAC, LLC" into "MAS HVAC" should collapse the two client slots
+    // into one, remap award_details.awarded_client_id onto the surviving slot, and
+    // drop the duplicate Tom Larson contact (same email on both).
+    project_name: 'Maple Grove Distribution Center — HVAC Retrofit',
+    description: 'Full HVAC retrofit for the Maple Grove distribution facility, replacing rooftop units and controls.',
+    division: '02',
+    project_stage: 'Award',
+    probability_percent: 100,
+    bid_date: '2026-05-01',
+    estimated_project_start: '2026-07-01',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0205-JD',
+    created_by: 'John Doe',
+    created_at: '2026-04-10T09:00:00.000Z',
+
+    site_location: { street: '8400 Zachary Lane', city: 'Maple Grove', state: 'MN', zip_code: '55369', country: 'United States', region: 'Midwest' },
+    contract_details: { contract_type: 'Lump Sum', end_sector: 'Industrial', square_footage: '42000', construction_type: 'Renovation', prime_or_sub: 'Prime' },
+    contacts: [
+      { id: 'pc-mas-1', source_contact_id: 'c-mas1', name: 'Tom Larson', contact_role: 'Client', company_name: 'MAS HVAC', company_city: 'Maple Grove', company_state: 'MN', email: 'tlarson@mashvac.com', phone: '(763) 555-0110', slot_id: 'slot-mas-1', is_primary: true },
+      { id: 'pc-mas-2', source_contact_id: 'c-mas3', name: 'Tom Larson', contact_role: 'Client', company_name: 'MAS HVAC, LLC', company_city: 'Maple Grove', company_state: 'MN', email: 'tlarson@mashvac.com', phone: '(763) 555-0110', slot_id: 'slot-mas-2' },
+    ],
+    client_slots: [
+      { id: 'slot-mas-1', company_name: 'MAS HVAC', client_type: 'Owner' },
+      { id: 'slot-mas-2', company_name: 'MAS HVAC, LLC', client_type: 'Owner' },
+    ],
+    owner_slot: { company_name: 'MAS HVAC' },
+    competitor_slots: [],
+    additional_companies: [],
+    estimation_number: 'EST-2026-0071',
+    bid_details: { total_bid_cost: '540000.00' },
+    award_details: {
+      awarded_date: '2026-04-01', awarded_amount: '540000.00', awarded_cost: '452000.00', awarded_margin_percent: '16.3',
+      project_manager: 'Angela Brooks', superintendent: 'Marcus Hale', awarded_client_id: 'slot-mas-2',
+    },
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-mas-hvac-test-2',
+
+    // Legacy schema on purpose — no client_slots/owner_slot at all, just a plain
+    // contacts[] entry, the way any project looks before it's been opened once in
+    // the detail view. Merge should still rename this contact's company_name with
+    // no dedup needed (Denise Foss is unique).
+    project_name: 'Maple Grove Cold Storage — Preliminary Assessment',
+    description: 'Early-stage assessment for a cold storage addition adjacent to the existing distribution center.',
+    division: '02',
+    project_stage: 'Lead',
+    probability_percent: 25,
+    bid_date: '2026-09-01',
+    estimated_project_start: '2027-01-01',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0206-JD',
+    created_by: 'John Doe',
+    created_at: '2026-04-11T09:00:00.000Z',
+
+    site_location: { street: '8420 Zachary Lane', city: 'Maple Grove', state: 'MN', zip_code: '55369', country: 'United States', region: 'Midwest' },
+    contacts: [
+      { id: 'pc-mas-3', source_contact_id: 'c-mas2', name: 'Denise Foss', contact_role: 'Client', company_name: 'MAS HVAC, LLC', company_city: 'Maple Grove', company_state: 'MN', email: 'dfoss@mashvacllc.com' },
+    ],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-mas-hvac-test-3',
+
+    // MAS Heating & Cooling (the contact-only "company") shows up here as the
+    // Owner, via owner_slot — a different repoint path than client_slots. The
+    // Client on this one is a different, unrelated company so the merge only
+    // needs to touch the owner side.
+    project_name: 'Northwind Business Park — Rooftop Unit Replacement',
+    description: 'Replace six rooftop HVAC units across three buildings in the Northwind Business Park.',
+    division: '02',
+    project_stage: 'Bid',
+    probability_percent: 55,
+    bid_date: '2026-06-15',
+    estimated_project_start: '2026-09-01',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0207-JD',
+    created_by: 'John Doe',
+    created_at: '2026-04-12T09:00:00.000Z',
+
+    site_location: { street: '14200 County Road 30', city: 'Plymouth', state: 'MN', zip_code: '55447', country: 'United States', region: 'Midwest' },
+    contract_details: { contract_type: 'Lump Sum', end_sector: 'Commercial', square_footage: '68000', construction_type: 'Renovation', prime_or_sub: 'Prime' },
+    contacts: [
+      { id: 'pc-nw-1', source_contact_id: 'c-bt1', name: 'Steve Morton', contact_role: 'Client', company_name: 'Grandview Properties', slot_id: 'slot-nw-1' },
+      { id: 'pc-nw-2', source_contact_id: 'c-mas4', name: 'Priya Anand', contact_role: 'Owner', company_name: 'MAS Heating & Cooling', slot_id: 'owner' },
+    ],
+    client_slots: [{ id: 'slot-nw-1', company_name: 'Grandview Properties', client_type: '' }],
+    owner_slot: { company_name: 'MAS Heating & Cooling' },
+    competitor_slots: [],
+    additional_companies: [],
+    estimation_number: 'EST-2026-0072',
+    bid_details: { total_bid_cost: '310000.00' },
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-mas-hvac-test-4',
+
+    // MAS HVAC and MAS HVAC, LLC both show up as Competitor slots here (bidding
+    // against ACI on this one, not a client) — exercises competitor_slots
+    // rename + dedupe, the one slot array the other test projects don't touch.
+    project_name: 'Elm Ridge Medical Office — Bid Package',
+    description: 'MEP bid package for a new 3-story medical office building.',
+    division: '01',
+    project_stage: 'Bid',
+    probability_percent: 40,
+    bid_date: '2026-07-10',
+    estimated_project_start: '2026-10-01',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0108-JD',
+    created_by: 'John Doe',
+    created_at: '2026-04-13T09:00:00.000Z',
+
+    site_location: { street: '900 Elm Ridge Pkwy', city: 'Cincinnati', state: 'OH', zip_code: '45202', country: 'United States', region: 'Southwest' },
+    contacts: [
+      { id: 'pc-elm-1', source_contact_id: 'c5', name: 'Karen Walsh', contact_role: 'Client', company_name: 'Riverfront Dev LLC', slot_id: 'slot-elm-1' },
+      { id: 'pc-elm-2', source_contact_id: 'c-mas1', name: 'Tom Larson', contact_role: 'Competitor', company_name: 'MAS HVAC', slot_id: 'comp-elm-1' },
+      { id: 'pc-elm-3', source_contact_id: 'c-mas3', name: 'Tom Larson', contact_role: 'Competitor', company_name: 'MAS HVAC, LLC', slot_id: 'comp-elm-2' },
+    ],
+    client_slots: [{ id: 'slot-elm-1', company_name: 'Riverfront Dev LLC', client_type: '' }],
+    owner_slot: { company_name: '' },
+    competitor_slots: [
+      { id: 'comp-elm-1', company_name: 'MAS HVAC' },
+      { id: 'comp-elm-2', company_name: 'MAS HVAC, LLC' },
+    ],
+    additional_companies: [],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-mas-hvac-test-5',
+
+    // A project that only ever referenced MAS HVAC (the merge destination) —
+    // a control case. It shouldn't change at all when the other two companies
+    // are merged in, other than continuing to count toward MAS HVAC's total.
+    project_name: 'MAS HVAC Corporate Office — Interior Fit-Out',
+    description: 'Interior build-out for the MAS HVAC corporate office suite.',
+    division: '02',
+    project_stage: 'Preliminary',
+    probability_percent: 10,
+    bid_date: '2026-10-01',
+    estimated_project_start: '2027-02-01',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0209-JD',
+    created_by: 'John Doe',
+    created_at: '2026-04-14T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-mas-6', source_contact_id: 'c-mas1', name: 'Tom Larson', contact_role: 'Client', company_name: 'MAS HVAC', company_city: 'Maple Grove', company_state: 'MN', email: 'tlarson@mashvac.com' },
+    ],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-abilene-test-1',
+
+    project_name: 'North Chesterfield Distribution Yard — Paving',
+    description: 'Truck yard paving and drainage work, tracked under the "Inc" (no period) name variant.',
+    division: '02',
+    project_stage: 'Bid',
+    probability_percent: 60,
+    bid_date: '2026-05-15',
+    estimated_project_start: '2026-08-01',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0215-JD',
+    created_by: 'John Doe',
+    created_at: '2026-01-28T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-abl-1', source_contact_id: 'c-abilene1', name: 'Frank Mercer', contact_role: 'Client', company_name: 'Abilene Motor Express, Inc', slot_id: 'slot-abl-1' },
+    ],
+    client_slots: [{ id: 'slot-abl-1', company_name: 'Abilene Motor Express, Inc', client_type: '' }],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-abilene-test-2',
+
+    project_name: 'Richmond Terminal — Dock Door Replacement',
+    description: 'Replace 12 dock doors and levelers, tracked under the "Inc." (with period) name variant.',
+    division: '02',
+    project_stage: 'Lead',
+    probability_percent: 30,
+    bid_date: '2026-09-01',
+    estimated_project_start: '2026-11-15',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0216-JD',
+    created_by: 'John Doe',
+    created_at: '2026-01-29T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-abl-2', source_contact_id: 'c-abilene3', name: 'Donna Pruitt', contact_role: 'Client', company_name: 'Abilene Motor Express, Inc.', slot_id: 'slot-abl-2' },
+    ],
+    client_slots: [{ id: 'slot-abl-2', company_name: 'Abilene Motor Express, Inc.', client_type: '' }],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-abilene-test-3',
+
+    // Both name variants as separate client slots, and the same contact
+    // (Frank Mercer, same email) added twice under each — exercises slot
+    // dedup, contact dedup, and the awarded_client_id remap all at once.
+    project_name: 'Chesterfield County Cross-Dock Facility',
+    description: 'New cross-dock facility; entered under both company name variants at different points.',
+    division: '02',
+    project_stage: 'Award',
+    probability_percent: 100,
+    bid_date: '2025-12-01',
+    estimated_project_start: '2026-02-15',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '25-0217-JD',
+    created_by: 'John Doe',
+    created_at: '2025-12-05T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-abl-3', source_contact_id: 'c-abilene1', name: 'Frank Mercer', contact_role: 'Client', company_name: 'Abilene Motor Express, Inc', slot_id: 'slot-abl-3' },
+      { id: 'pc-abl-4', source_contact_id: 'c-abilene2', name: 'Frank Mercer', contact_role: 'Client', company_name: 'Abilene Motor Express, Inc.', slot_id: 'slot-abl-4' },
+    ],
+    client_slots: [
+      { id: 'slot-abl-3', company_name: 'Abilene Motor Express, Inc', client_type: '' },
+      { id: 'slot-abl-4', company_name: 'Abilene Motor Express, Inc.', client_type: '' },
+    ],
+    award_details: {
+      awarded_date: '2026-01-20', awarded_amount: '890000.00', awarded_cost: '745000.00', awarded_margin_percent: '16.3',
+      project_manager: 'Diane Ross', superintendent: 'Kevin Marsh', awarded_client_id: 'slot-abl-4',
+    },
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-ruritan-test-1',
+
+    project_name: 'Abingdon Ruritan Club — Pavilion Roof Replacement',
+    description: 'Replace the roof on the community pavilion, tracked under the misspelled club name.',
+    division: '04',
+    project_stage: 'Preliminary',
+    probability_percent: 20,
+    bid_date: '2026-06-01',
+    estimated_project_start: '2026-08-15',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0418-JD',
+    created_by: 'John Doe',
+    created_at: '2026-01-30T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-rur-1', source_contact_id: 'c-ruritan1', name: 'Betty Sue Combs', contact_role: 'Client', company_name: 'Abingdon Ruritan Club', slot_id: 'slot-rur-1' },
+    ],
+    client_slots: [{ id: 'slot-rur-1', company_name: 'Abingdon Ruritan Club', client_type: '' }],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-ruritan-test-2',
+
+    project_name: 'Bena Community Center — HVAC Replacement',
+    description: 'Replace aging rooftop units at the community center, tracked under the correctly-spelled club name.',
+    division: '04',
+    project_stage: 'Lead',
+    probability_percent: 35,
+    bid_date: '2026-07-01',
+    estimated_project_start: '2026-09-15',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0419-JD',
+    created_by: 'John Doe',
+    created_at: '2026-01-31T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-rur-2', source_contact_id: 'c-ruritan2', name: 'Betty Sue Combs', contact_role: 'Client', company_name: 'Abington Ruritan Club', slot_id: 'slot-rur-2' },
+    ],
+    client_slots: [{ id: 'slot-rur-2', company_name: 'Abington Ruritan Club', client_type: '' }],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-english-test-1',
+
+    // Tracked only under the full legal name — a plain contact string with no
+    // source_contact_id (never added through the CRM selector), which is why
+    // "English Construction Company, Inc." shows projects but 0 CRM contacts.
+    project_name: 'Lynchburg General Hospital — Site Utilities',
+    description: 'Site utility work for a hospital expansion, tracked under the full legal company name.',
+    division: '01',
+    project_stage: 'Award',
+    probability_percent: 100,
+    bid_date: '2025-11-01',
+    estimated_project_start: '2026-01-15',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '25-0110-JD',
+    created_by: 'John Doe',
+    created_at: '2025-11-05T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-eng-1', name: 'Field Office', contact_role: 'Client', company_name: 'English Construction Company, Inc.', slot_id: 'slot-eng-1' },
+    ],
+    client_slots: [{ id: 'slot-eng-1', company_name: 'English Construction Company, Inc.', client_type: '' }],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-english-test-2',
+
+    // Tracked under the shorthand name, with a real CRM-linked contact.
+    project_name: 'Amherst County School Renovation',
+    description: 'Renovation package tracked under the shorthand company name used more recently in the CRM.',
+    division: '01',
+    project_stage: 'Bid',
+    probability_percent: 50,
+    bid_date: '2026-06-01',
+    estimated_project_start: '2026-09-01',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0111-JD',
+    created_by: 'John Doe',
+    created_at: '2026-01-30T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-eng-2', source_contact_id: 'c-english1', name: 'Walter Ingram', contact_role: 'Client', company_name: 'English', slot_id: 'slot-eng-2' },
+    ],
+    client_slots: [{ id: 'slot-eng-2', company_name: 'English', client_type: '' }],
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-english-test-3',
+
+    // Double-booked under both name variants as separate client slots — the
+    // awarded client points at the "English" slot, which gets merged away.
+    project_name: 'Bedford Water Treatment Facility — Upgrade',
+    description: 'Water treatment upgrade where the same contractor got entered under both company name variants.',
+    division: '03',
+    project_stage: 'Award',
+    probability_percent: 100,
+    bid_date: '2026-02-01',
+    estimated_project_start: '2026-04-01',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0312-JD',
+    created_by: 'John Doe',
+    created_at: '2026-02-05T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-eng-3', name: 'Field Office', contact_role: 'Client', company_name: 'English Construction Company, Inc.', slot_id: 'slot-eng-3' },
+      { id: 'pc-eng-4', source_contact_id: 'c-english1', name: 'Walter Ingram', contact_role: 'Client', company_name: 'English', slot_id: 'slot-eng-4' },
+    ],
+    client_slots: [
+      { id: 'slot-eng-3', company_name: 'English Construction Company, Inc.', client_type: '' },
+      { id: 'slot-eng-4', company_name: 'English', client_type: '' },
+    ],
+    award_details: {
+      awarded_date: '2026-03-01', awarded_amount: '410000.00', awarded_cost: '340000.00', awarded_margin_percent: '17',
+      project_manager: 'Nina Ford', superintendent: 'Owen Blake', awarded_client_id: 'slot-eng-4',
+    },
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-mondelez-test-1',
+
+    // Both company-name variants sit on this job as separate client slots, so
+    // both rows count it — mirrors "same project count on both duplicates."
+    project_name: 'East Hanover Distribution Hub — Racking Install',
+    description: 'Warehouse racking install; both the international parent and the US operating entity are listed as client slots on this one.',
+    division: '02',
+    project_stage: 'Award',
+    probability_percent: 100,
+    bid_date: '2026-01-10',
+    estimated_project_start: '2026-03-01',
+    project_type: 'N',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0213-JD',
+    created_by: 'John Doe',
+    created_at: '2026-01-15T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-mdz-1', source_contact_id: 'c-mondelez1', name: 'Sandra Kessler', contact_role: 'Client', company_name: 'Mondelez International Inc.', slot_id: 'slot-mdz-1' },
+    ],
+    client_slots: [
+      { id: 'slot-mdz-1', company_name: 'Mondelez International Inc.', client_type: '' },
+      { id: 'slot-mdz-2', company_name: 'Mondelez Global LLC', client_type: '' },
+    ],
+    award_details: {
+      awarded_date: '2026-02-10', awarded_amount: '265000.00', awarded_cost: '221000.00', awarded_margin_percent: '16.6',
+      project_manager: 'Chris Boyd', superintendent: 'Alan Reyes', awarded_client_id: 'slot-mdz-2',
+    },
+    notes: [],
+    clients: [],
+  },
+  {
+    id: 'seed-mondelez-test-2',
+
+    // Second shared job — same double-booked pattern, still in Bid so no award
+    // remap on this one, just plain client_slots dedup.
+    project_name: 'East Hanover Plant — Ammonia Refrigeration Retrofit',
+    description: 'Refrigeration system retrofit, also double-booked under both company name variants.',
+    division: '02',
+    project_stage: 'Bid',
+    probability_percent: 45,
+    bid_date: '2026-08-01',
+    estimated_project_start: '2026-11-01',
+    project_type: 'R',
+    nda: 'No',
+    data_source: 'Axiom',
+    potential_project_number: '26-0214-JD',
+    created_by: 'John Doe',
+    created_at: '2026-02-20T09:00:00.000Z',
+
+    contacts: [
+      { id: 'pc-mdz-2', source_contact_id: 'c-mondelez1', name: 'Sandra Kessler', contact_role: 'Client', company_name: 'Mondelez International Inc.', slot_id: 'slot-mdz-3' },
+    ],
+    client_slots: [
+      { id: 'slot-mdz-3', company_name: 'Mondelez International Inc.', client_type: '' },
+      { id: 'slot-mdz-4', company_name: 'Mondelez Global LLC', client_type: '' },
+    ],
+    notes: [],
+    clients: [],
+  },
 ];
 
 function loadProjects() {
@@ -883,6 +1333,91 @@ const SEED_CLIENT_COMPANIES = [
     vendor_enrollment: null,
     created_at: '2026-01-10T08:00:00.000Z',
   },
+  // --- Duplicate-company test data for the Merge Companies feature ---
+  // Same real-world vendor entered three different ways: a clean record, a
+  // near-duplicate with an overlapping Main address plus one unique address, and a
+  // contact-only "company" with no clientCompanies record at all. Open MAS HVAC's
+  // detail page and use Merge Companies to fold the other two into it.
+  {
+    id: 'co-mashvac',
+    company_name: 'MAS HVAC',
+    company_city: 'Maple Grove',
+    company_state: 'MN',
+    company_group: ['ACI'],
+    company_type: ['Client'],
+    addresses: [
+      { id: 'mas-addr-main', type: 'Main', street: '8400 Zachary Lane', city: 'Maple Grove', state: 'MN', zip: '55369', country: 'US' },
+    ],
+    vendor_enrollment: null,
+    created_at: '2026-01-05T08:00:00.000Z',
+  },
+  {
+    id: 'co-mashvacllc',
+    company_name: 'MAS HVAC, LLC',
+    company_city: 'Maple Grove',
+    company_state: 'MN',
+    company_group: ['API'],
+    company_type: ['Owner'],
+    addresses: [
+      { id: 'mashvacllc-addr-main', type: 'Main', street: '8400 Zachary Lane', city: 'Maple Grove', state: 'MN', zip: '55369', country: 'US' },
+      { id: 'mashvacllc-addr-shipping', type: 'Shipping', street: '1200 Weston Lane N', city: 'Maple Grove', state: 'MN', zip: '55369', country: 'US' },
+    ],
+    vendor_enrollment: 'pending',
+    created_at: '2026-02-01T08:00:00.000Z',
+  },
+  // --- More duplicate-company patterns (punctuation-only, misspelling, blank
+  // city/state, legal-suffix variants) — same idea as the MAS HVAC set above,
+  // pulled from real-world dedup examples. No contacts/projects on these two
+  // pairs on purpose (Section 18: an empty-vs-empty merge is its own edge case).
+  {
+    id: 'co-abilene-1', company_name: 'Abilene Motor Express, Inc', company_city: 'North Chesterfield', company_state: 'VA',
+    company_group: ['ACI'], company_type: ['Client'],
+    addresses: [{ id: 'abilene1-addr-main', type: 'Main', street: '4100 Cogbill Rd', city: 'North Chesterfield', state: 'VA', zip: '23234', country: 'US' }],
+    vendor_enrollment: null, created_at: '2026-01-20T08:00:00.000Z',
+  },
+  {
+    id: 'co-abilene-2', company_name: 'Abilene Motor Express, Inc.', company_city: 'Richmond', company_state: 'VA',
+    company_group: ['ACI'], company_type: ['Client'],
+    addresses: [{ id: 'abilene2-addr-main', type: 'Main', street: '2901 Hermitage Rd', city: 'Richmond', state: 'VA', zip: '23220', country: 'US' }],
+    vendor_enrollment: null, created_at: '2026-01-21T08:00:00.000Z',
+  },
+  {
+    id: 'co-ruritan-1', company_name: 'Abingdon Ruritan Club', company_city: '', company_state: '',
+    company_group: ['ACI'], company_type: ['Client'], addresses: [], vendor_enrollment: null, created_at: '2026-01-22T08:00:00.000Z',
+  },
+  {
+    id: 'co-ruritan-2', company_name: 'Abington Ruritan Club', company_city: 'Bena', company_state: 'VA',
+    company_group: ['ACI'], company_type: ['Client'],
+    addresses: [{ id: 'ruritan2-addr-main', type: 'Main', street: '7200 Guinea Rd', city: 'Bena', state: 'VA', zip: '23018', country: 'US' }],
+    vendor_enrollment: null, created_at: '2026-01-23T08:00:00.000Z',
+  },
+  // English pair: full legal name has projects but zero CRM contacts (contacts
+  // were entered as plain strings on the job, never added through the CRM
+  // selector); the shorthand name has 1 contact, is vendor-enrollment pending,
+  // and shares one project with the other name via two client slots.
+  {
+    id: 'co-english-1', company_name: 'English Construction Company, Inc.', company_city: 'Lynchburg', company_state: 'VA',
+    company_group: ['ACI'], company_type: ['Client'],
+    addresses: [{ id: 'english1-addr-main', type: 'Main', street: '2130 Langhorne Rd', city: 'Lynchburg', state: 'VA', zip: '24501', country: 'US' }],
+    vendor_enrollment: null, created_at: '2026-01-24T08:00:00.000Z',
+  },
+  {
+    id: 'co-english-2', company_name: 'English', company_city: '', company_state: '',
+    company_group: ['ACI'], company_type: ['Client'], addresses: [], vendor_enrollment: 'pending', created_at: '2026-01-25T08:00:00.000Z',
+  },
+  // Mondelez pair: legal-suffix variant (International Inc. vs Global LLC) where
+  // both names sit on the same jobs as separate client slots, so both rows show
+  // the same project count until merged.
+  {
+    id: 'co-mondelez-1', company_name: 'Mondelez International Inc.', company_city: '', company_state: '',
+    company_group: ['ACI'], company_type: ['Client'], addresses: [], vendor_enrollment: 'pending', created_at: '2026-01-26T08:00:00.000Z',
+  },
+  {
+    id: 'co-mondelez-2', company_name: 'Mondelez Global LLC', company_city: 'East Hanover', company_state: 'NJ',
+    company_group: ['ACI'], company_type: ['Client'],
+    addresses: [{ id: 'mondelez2-addr-main', type: 'Main', street: '905 W Main St', city: 'East Hanover', state: 'NJ', zip: '07936', country: 'US' }],
+    vendor_enrollment: null, created_at: '2026-01-27T08:00:00.000Z',
+  },
 ];
 
 function loadClientCompanies() {
@@ -924,6 +1459,24 @@ const SEED_CLIENT_CONTACTS = [
   { id: 'c-bt1', name: 'Steve Morton', contact_role: 'Client', company_name: 'Grandview Properties', company_city: 'Columbus', company_state: 'OH', email: 'smorton@grandviewprop.com', phone: '(614) 555-0455', created_at: '2026-02-18T08:00:00.000Z' },
   { id: 'c-bt2', name: 'Dr. Linda Park', contact_role: 'Client', company_name: 'Mercy Health System', company_city: 'Toledo', company_state: 'OH', email: 'lpark@mercyhealth.org', phone: '(419) 555-0312', created_at: '2025-12-08T09:00:00.000Z' },
   { id: 'c-bt3', name: 'Ryan Schultz', contact_role: 'Engineer', company_name: 'Schultz MEP', company_city: 'Toledo', company_state: 'OH', email: 'rschultz@schultzmep.com', phone: '(419) 555-0198', created_at: '2025-12-08T09:10:00.000Z' },
+  // --- Duplicate-company test data (see SEED_CLIENT_COMPANIES above) ---
+  // c-mas1 and c-mas3 are the exact same person/email under the two company name
+  // variants — merging should drop c-mas3 and keep c-mas1. c-mas2 and c-mas4 are
+  // unique contacts on the duplicate companies and should survive the merge,
+  // repointed onto MAS HVAC.
+  { id: 'c-mas1', name: 'Tom Larson', contact_role: 'Client', roles: ['Client'], company_name: 'MAS HVAC', company_city: 'Maple Grove', company_state: 'MN', email: 'tlarson@mashvac.com', phone: '(763) 555-0110', address_id: 'mas-addr-main', is_primary: true, created_at: '2026-01-06T08:00:00.000Z' },
+  { id: 'c-mas2', name: 'Denise Foss', contact_role: 'Client', roles: ['Client'], company_name: 'MAS HVAC, LLC', company_city: 'Maple Grove', company_state: 'MN', email: 'dfoss@mashvacllc.com', phone: '(763) 555-0199', address_id: 'mashvacllc-addr-shipping', is_primary: true, created_at: '2026-02-02T09:00:00.000Z' },
+  { id: 'c-mas3', name: 'Tom Larson', contact_role: 'Client', roles: ['Client'], company_name: 'MAS HVAC, LLC', company_city: 'Maple Grove', company_state: 'MN', email: 'tlarson@mashvac.com', phone: '(763) 555-0110', address_id: 'mashvacllc-addr-main', created_at: '2026-02-03T09:00:00.000Z' },
+  { id: 'c-mas4', name: 'Priya Anand', contact_role: 'Client', roles: ['Client'], company_name: 'MAS Heating & Cooling', company_city: 'Maple Grove', company_state: 'MN', email: 'panand@masheatcool.com', phone: '(763) 555-0142', created_at: '2026-02-10T09:00:00.000Z' },
+  // Same contact, same email, entered under both name variants — should dedupe
+  // down to one contact on merge.
+  { id: 'c-abilene1', name: 'Frank Mercer', contact_role: 'Client', roles: ['Client'], company_name: 'Abilene Motor Express, Inc', company_city: 'North Chesterfield', company_state: 'VA', email: 'fmercer@abilenemotor.com', phone: '(804) 555-0117', address_id: 'abilene1-addr-main', is_primary: true, created_at: '2026-01-20T09:00:00.000Z' },
+  { id: 'c-abilene2', name: 'Frank Mercer', contact_role: 'Client', roles: ['Client'], company_name: 'Abilene Motor Express, Inc.', company_city: 'Richmond', company_state: 'VA', email: 'fmercer@abilenemotor.com', phone: '(804) 555-0117', address_id: 'abilene2-addr-main', created_at: '2026-01-21T09:05:00.000Z' },
+  { id: 'c-abilene3', name: 'Donna Pruitt', contact_role: 'Client', roles: ['Client'], company_name: 'Abilene Motor Express, Inc.', company_city: 'Richmond', company_state: 'VA', email: 'dpruitt@abilenemotor.com', phone: '(804) 555-0163', address_id: 'abilene2-addr-main', created_at: '2026-01-21T09:10:00.000Z' },
+  { id: 'c-ruritan1', name: 'Betty Sue Combs', contact_role: 'Client', roles: ['Client'], company_name: 'Abingdon Ruritan Club', company_city: '', company_state: '', email: 'bscombs@ruritan.org', phone: '(276) 555-0129', is_primary: true, created_at: '2026-01-22T09:00:00.000Z' },
+  { id: 'c-ruritan2', name: 'Betty Sue Combs', contact_role: 'Client', roles: ['Client'], company_name: 'Abington Ruritan Club', company_city: 'Bena', company_state: 'VA', email: 'bscombs@ruritan.org', phone: '(276) 555-0129', address_id: 'ruritan2-addr-main', created_at: '2026-01-23T09:05:00.000Z' },
+  { id: 'c-english1', name: 'Walter Ingram', contact_role: 'Client', roles: ['Client'], company_name: 'English', company_city: '', company_state: '', email: 'wingram@englishconst.com', phone: '(434) 555-0166', is_primary: true, created_at: '2026-01-25T09:00:00.000Z' },
+  { id: 'c-mondelez1', name: 'Sandra Kessler', contact_role: 'Client', roles: ['Client'], company_name: 'Mondelez International Inc.', company_city: '', company_state: '', email: 'skessler@mondelezintl.com', phone: '(973) 555-0188', is_primary: true, created_at: '2026-01-26T09:00:00.000Z' },
 ];
 
 function loadClientContacts() {
@@ -943,6 +1496,51 @@ function loadClientContacts() {
 function saveClientContacts(contacts) {
   if (typeof window === 'undefined') return;
   localStorage.setItem('master_client_contacts', JSON.stringify(contacts));
+}
+
+// --- Merge Client Companies helpers ---
+// Two addresses are "the same" for merge purposes if every line matches once
+// trimmed/case-folded — that's how we avoid piling up duplicate address rows.
+function normalizeAddressKey(a) {
+  return [a.street, a.city, a.state, a.zip, a.country].map((v) => (v || '').trim().toLowerCase()).join('|');
+}
+
+function slotDedupeKey(slot, extraFields) {
+  const base = (slot.company_name || '').trim().toLowerCase();
+  return extraFields.length ? `${base}|${extraFields.map((f) => slot[f]).join('|')}` : base;
+}
+
+// Renames any slot (client/competitor/additional-company) whose company_name is
+// being merged away, then collapses slots that now collide (e.g. destination and
+// source were both already added as separate slots on the same project). Returns
+// the deduped slot list plus a map of dropped-slot-id -> surviving-slot-id so the
+// caller can repoint everything that referenced the dropped slot (contacts'
+// slot_id, award_details.awarded_client_id, client_data).
+function renameAndDedupeSlots(slots, sourceSet, destinationName, extraFields = []) {
+  const idMap = new Map();
+  if (!slots || slots.length === 0) return { slots: slots || [], idMap, changed: false };
+  let renameOccurred = false;
+  const renamed = slots.map((s) => {
+    if (s.company_name && sourceSet.has(s.company_name)) {
+      renameOccurred = true;
+      return { ...s, company_name: destinationName };
+    }
+    return s;
+  });
+  const seen = new Map();
+  const result = [];
+  renamed.forEach((s) => {
+    if (!s.company_name) { result.push(s); return; }
+    const key = slotDedupeKey(s, extraFields);
+    const existing = seen.get(key);
+    if (existing) {
+      idMap.set(s.id, existing.id);
+    } else {
+      seen.set(key, s);
+      result.push(s);
+    }
+  });
+  return { slots: result, idMap, changed: renameOccurred || idMap.size > 0 };
 }
 
 export function ProjectsProvider({ children }) {
@@ -1220,6 +1818,187 @@ export function ProjectsProvider({ children }) {
     );
   }, []);
 
+  // Consolidates one or more source companies into a destination company: contacts,
+  // addresses, and every project reference (client/owner/competitor/additional-company
+  // slots, and CRM contact links) are repointed to the destination. Anything that would
+  // become a duplicate on the destination (same contact, same address, same company
+  // already on a job) is dropped rather than copied, so the destination becomes the
+  // single source of truth and the source companies disappear.
+  const mergeClientCompanies = useCallback((destinationName, sourceNames) => {
+    const sources = Array.from(new Set((sourceNames || []).filter((n) => n && n !== destinationName)));
+    if (!destinationName || sources.length === 0) return;
+    const sourceSet = new Set(sources);
+
+    // --- Companies: union addresses (deduped by physical location), group/type, enrollment ---
+    const destCompany = clientCompanies.find((c) => c.company_name === destinationName);
+    const sourceCompanies = clientCompanies.filter((c) => sourceSet.has(c.company_name));
+
+    const mergedAddresses = [...(destCompany?.addresses || [])];
+    const addrByKey = new Map(mergedAddresses.map((a) => [normalizeAddressKey(a), a]));
+    const addressIdMap = new Map();
+    sourceCompanies.forEach((sc) => {
+      (sc.addresses || []).forEach((a) => {
+        const key = normalizeAddressKey(a);
+        const existing = addrByKey.get(key);
+        if (existing) {
+          addressIdMap.set(a.id, existing.id);
+        } else {
+          const copy = { ...a, id: crypto.randomUUID() };
+          mergedAddresses.push(copy);
+          addrByKey.set(key, copy);
+          addressIdMap.set(a.id, copy.id);
+        }
+      });
+    });
+
+    const mergedGroup = Array.from(new Set([...(destCompany?.company_group || []), ...sourceCompanies.flatMap((c) => c.company_group || [])]));
+    const mergedType = Array.from(new Set([...(destCompany?.company_type || []), ...sourceCompanies.flatMap((c) => c.company_type || [])]));
+    const mergedEnrollment = destCompany?.vendor_enrollment || sourceCompanies.find((c) => c.vendor_enrollment)?.vendor_enrollment || null;
+    const mergedCity = destCompany?.company_city || sourceCompanies.find((c) => c.company_city)?.company_city || '';
+    const mergedState = destCompany?.company_state || sourceCompanies.find((c) => c.company_state)?.company_state || '';
+
+    let nextClientCompanies;
+    if (destCompany) {
+      nextClientCompanies = clientCompanies
+        .filter((c) => !sourceSet.has(c.company_name))
+        .map((c) => (c.id === destCompany.id
+          ? { ...c, addresses: mergedAddresses, company_group: mergedGroup, company_type: mergedType, vendor_enrollment: mergedEnrollment, company_city: mergedCity, company_state: mergedState }
+          : c));
+    } else {
+      const shell = {
+        id: crypto.randomUUID(), company_name: destinationName, company_city: mergedCity, company_state: mergedState,
+        company_group: mergedGroup, company_type: mergedType, addresses: mergedAddresses, vendor_enrollment: mergedEnrollment,
+        created_at: new Date().toISOString(),
+      };
+      nextClientCompanies = [shell, ...clientCompanies.filter((c) => !sourceSet.has(c.company_name))];
+    }
+
+    // --- CRM Contacts: repoint to destination, dedupe by email (else name) ---
+    const contactKey = (c) => ((c.email || '').trim().toLowerCase()
+      ? `email:${c.email.trim().toLowerCase()}`
+      : `name:${(c.name || '').trim().toLowerCase()}`);
+    const keptByKey = new Map();
+    clientContacts.filter((c) => c.company_name === destinationName).forEach((c) => keptByKey.set(contactKey(c), c));
+    let destHasPrimary = clientContacts.some((c) => c.company_name === destinationName && c.is_primary);
+
+    const contactIdMap = new Map(); // every merged-away CRM contact id -> the id it now resolves to
+    const nextClientContacts = [];
+    clientContacts.forEach((c) => {
+      if (!sourceSet.has(c.company_name)) { nextClientContacts.push(c); return; }
+      const key = contactKey(c);
+      const existing = keptByKey.get(key);
+      if (existing) {
+        contactIdMap.set(c.id, existing.id);
+        return; // duplicate of a contact already on the destination — drop it
+      }
+      const migrated = {
+        ...c,
+        company_name: destinationName,
+        company_city: mergedCity || c.company_city,
+        company_state: mergedState || c.company_state,
+        address_id: c.address_id ? (addressIdMap.get(c.address_id) || c.address_id) : c.address_id,
+        is_primary: c.is_primary && !destHasPrimary,
+      };
+      if (migrated.is_primary) destHasPrimary = true;
+      keptByKey.set(key, migrated);
+      contactIdMap.set(c.id, migrated.id);
+      nextClientContacts.push(migrated);
+    });
+
+    // --- Projects: repoint every reference to the merged-away company names ---
+    const nextProjects = projects.map((p) => {
+      let changed = false;
+      const next = { ...p };
+
+      if (next.client_company && sourceSet.has(next.client_company)) { next.client_company = destinationName; changed = true; }
+      if (next.owner_company && sourceSet.has(next.owner_company)) { next.owner_company = destinationName; changed = true; }
+      if (next.owner_slot?.company_name && sourceSet.has(next.owner_slot.company_name)) {
+        next.owner_slot = { ...next.owner_slot, company_name: destinationName };
+        changed = true;
+      }
+
+      const { slots: clientSlots, idMap: clientSlotMap, changed: clientSlotsChanged } = renameAndDedupeSlots(p.client_slots, sourceSet, destinationName);
+      if (clientSlotsChanged) { next.client_slots = clientSlots; changed = true; }
+
+      const { slots: competitorSlots, idMap: competitorSlotMap, changed: competitorSlotsChanged } = renameAndDedupeSlots(p.competitor_slots, sourceSet, destinationName);
+      if (competitorSlotsChanged) { next.competitor_slots = competitorSlots; changed = true; }
+
+      const { slots: additionalCompanies, idMap: additionalMap, changed: additionalChanged } = renameAndDedupeSlots(p.additional_companies, sourceSet, destinationName, ['type']);
+      if (additionalChanged) { next.additional_companies = additionalCompanies; changed = true; }
+
+      const slotIdMap = new Map([...clientSlotMap, ...competitorSlotMap, ...additionalMap]);
+
+      if (slotIdMap.size > 0 && next.award_details?.awarded_client_id && slotIdMap.has(next.award_details.awarded_client_id)) {
+        next.award_details = { ...next.award_details, awarded_client_id: slotIdMap.get(next.award_details.awarded_client_id) };
+        changed = true;
+      }
+
+      if (next.client_data && slotIdMap.size > 0) {
+        const cd = { ...next.client_data };
+        let cdChanged = false;
+        Object.keys(cd).forEach((oldId) => {
+          if (!slotIdMap.has(oldId)) return;
+          const keptId = slotIdMap.get(oldId);
+          cd[keptId] = { ...(cd[oldId] || {}), ...(cd[keptId] || {}) };
+          delete cd[oldId];
+          cdChanged = true;
+        });
+        if (cdChanged) { next.client_data = cd; changed = true; }
+      }
+
+      // Contacts on the project: rename company, repoint CRM link + slot_id, then drop duplicates
+      if ((p.contacts || []).length > 0) {
+        const renamedContacts = p.contacts.map((c) => {
+          let rc = c;
+          if (c.company_name && sourceSet.has(c.company_name)) {
+            rc = { ...rc, company_name: destinationName, company_city: mergedCity || rc.company_city, company_state: mergedState || rc.company_state };
+          }
+          if (rc.source_contact_id && contactIdMap.has(rc.source_contact_id)) {
+            rc = { ...rc, source_contact_id: contactIdMap.get(rc.source_contact_id) };
+          }
+          if (rc.slot_id && slotIdMap.has(rc.slot_id)) {
+            rc = { ...rc, slot_id: slotIdMap.get(rc.slot_id) };
+          }
+          return rc;
+        });
+
+        const seenContact = new Map();
+        const dedupedContacts = [];
+        renamedContacts.forEach((c) => {
+          const key = c.source_contact_id
+            ? `id:${c.source_contact_id}`
+            : `flat:${(c.name || '').trim().toLowerCase()}|${(c.company_name || '').trim().toLowerCase()}|${c.contact_role}`;
+          const kept = seenContact.get(key);
+          if (kept) {
+            // A duplicate contact ended up on the job (e.g. it was added under both
+            // the source and destination company) — keep one copy, but don't lose
+            // primary/slot info the surviving copy didn't have.
+            if ((c.is_primary && !kept.is_primary) || (c.slot_id && !kept.slot_id)) {
+              const idx = dedupedContacts.indexOf(kept);
+              const merged = { ...kept, is_primary: kept.is_primary || c.is_primary, slot_id: kept.slot_id || c.slot_id };
+              dedupedContacts[idx] = merged;
+              seenContact.set(key, merged);
+            }
+            return;
+          }
+          seenContact.set(key, c);
+          dedupedContacts.push(c);
+        });
+
+        if (dedupedContacts.length !== p.contacts.length || dedupedContacts.some((c, i) => c !== p.contacts[i])) {
+          next.contacts = dedupedContacts;
+          changed = true;
+        }
+      }
+
+      return changed ? next : p;
+    });
+
+    setClientCompanies(nextClientCompanies);
+    setClientContacts(nextClientContacts);
+    setProjects(nextProjects);
+  }, [clientCompanies, clientContacts, projects]);
+
   // --- Client Contacts CRUD (CRM) ---
   const createClientContact = useCallback((data) => {
     const now = new Date().toISOString();
@@ -1288,6 +2067,7 @@ export function ProjectsProvider({ children }) {
         clientCompanies,
         createClientCompany,
         updateClientCompany,
+        mergeClientCompanies,
         // Constants
         STAGES,
         PROJECT_TYPES,
