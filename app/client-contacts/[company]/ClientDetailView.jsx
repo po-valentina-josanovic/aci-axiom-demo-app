@@ -145,7 +145,7 @@ function PrimaryToggle({ value, onChange }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 export default function ClientDetailView({ companyName }) {
-  const { clientContacts, createClientContact, updateClientContact, deleteClientContact, setContactAsPrimary, clientCompanies, createClientCompany, updateClientCompany, CONTACT_ROLES, projects } = useProjects();
+  const { clientContacts, createClientContact, updateClientContact, deleteClientContact, setContactAsPrimary, clientCompanies, createClientCompany, updateClientCompany, mergeClientCompanies, CONTACT_ROLES, projects } = useProjects();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -153,6 +153,10 @@ export default function ClientDetailView({ companyName }) {
   const [enrollmentAlert, setEnrollmentAlert] = useState(null);
   const [overrideConfirm, setOverrideConfirm] = useState(null); // { pendingSave, currentPrimaryName, newName }
   const [manageAddressesOpen, setManageAddressesOpen] = useState(false);
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeSearch, setMergeSearch] = useState('');
+  const [mergeSelected, setMergeSelected] = useState([]);
+  const [mergeConfirmOpen, setMergeConfirmOpen] = useState(false);
 
   // Contacts for this company — primary first, then alphabetical
   const companyContacts = useMemo(() =>
@@ -170,12 +174,17 @@ export default function ClientDetailView({ companyName }) {
   const companyState = companyRecord?.company_state || companyContacts[0]?.company_state || '';
   const enrollmentStatus = companyRecord?.vendor_enrollment || null;
 
+  // Keyed by source_contact_id when present — that's how contacts added via the
+  // CRM selector link back to their CRM record (see ClientContactsView's
+  // contactJobsMap, which resolves the same way). Falling back to c.id only
+  // covers contacts whose id happens to equal their CRM id (older/legacy data).
   const contactJobsMap = useMemo(() => {
     const map = {};
     (projects || []).forEach((p) => {
       (p.contacts || []).forEach((c) => {
-        if (!map[c.id]) map[c.id] = [];
-        map[c.id].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
+        const key = c.source_contact_id || c.id;
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: p.id, name: p.project_name, number: p.potential_project_number, stage: p.project_stage });
       });
     });
     return map;
@@ -211,6 +220,53 @@ export default function ClientDetailView({ companyName }) {
     } else {
       createClientCompany({ company_name: companyName, ...updates });
     }
+  }
+
+  // Every other company in the CRM, with counts, so the merge picker can show
+  // what's about to move over — the same "which one is the duplicate" view as
+  // the Company & Contact Management list.
+  const allCompanyStats = useMemo(() => {
+    const map = {};
+    clientContacts.forEach((c) => {
+      const key = c.company_name || '';
+      if (!key) return;
+      if (!map[key]) map[key] = { name: key, city: c.company_city || '', state: c.company_state || '', contactCount: 0, projectSet: new Set() };
+      map[key].contactCount += 1;
+      if (!map[key].city && c.company_city) map[key].city = c.company_city;
+      if (!map[key].state && c.company_state) map[key].state = c.company_state;
+    });
+    clientCompanies.forEach((co) => {
+      if (!map[co.company_name]) map[co.company_name] = { name: co.company_name, city: co.company_city || '', state: co.company_state || '', contactCount: 0, projectSet: new Set() };
+    });
+    projects.forEach((p) => {
+      (p.contacts || []).forEach((c) => {
+        if (c.company_name && map[c.company_name]) map[c.company_name].projectSet.add(p.id);
+      });
+    });
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+  }, [clientContacts, clientCompanies, projects]);
+
+  const mergeCandidates = useMemo(() => {
+    const q = mergeSearch.trim().toLowerCase();
+    return allCompanyStats
+      .filter((c) => c.name !== companyName)
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || c.city.toLowerCase().includes(q) || c.state.toLowerCase().includes(q));
+  }, [allCompanyStats, companyName, mergeSearch]);
+
+  function toggleMergeSelected(name) {
+    setMergeSelected((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+  }
+
+  function closeMergeModal() {
+    setMergeModalOpen(false);
+    setMergeSearch('');
+    setMergeSelected([]);
+  }
+
+  function commitMerge() {
+    mergeClientCompanies(companyName, mergeSelected);
+    setMergeConfirmOpen(false);
+    closeMergeModal();
   }
 
   function openAddModal() {
@@ -351,16 +407,28 @@ export default function ClientDetailView({ companyName }) {
               </div>
             </div>
           </div>
-          <button
-            onClick={openAddModal}
-            className="flex items-center gap-1.5 cursor-pointer"
-            style={{ padding: '5px 12px', fontSize: '11px', fontWeight: 600, color: '#fff', background: '#2979ff', border: '1px solid #2979ff', borderRadius: '6px' }}
-          >
-            <svg style={{ width: '12px', height: '12px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Contact
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setMergeModalOpen(true)}
+              className="flex items-center gap-1.5 cursor-pointer"
+              style={{ padding: '5px 12px', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px' }}
+            >
+              <svg style={{ width: '12px', height: '12px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 8v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              Merge Companies
+            </button>
+            <button
+              onClick={openAddModal}
+              className="flex items-center gap-1.5 cursor-pointer"
+              style={{ padding: '5px 12px', fontSize: '11px', fontWeight: 600, color: '#fff', background: '#2979ff', border: '1px solid #2979ff', borderRadius: '6px' }}
+            >
+              <svg style={{ width: '12px', height: '12px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Contact
+            </button>
+          </div>
         </div>
       </div>
 
@@ -746,6 +814,122 @@ export default function ClientDetailView({ companyName }) {
               >
                 {editingId ? 'Save Changes' : 'Add Contact'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Companies Modal */}
+      {mergeModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={closeMergeModal}>
+          <div style={{ background: '#fff', borderRadius: '10px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.25)', width: '100%', maxWidth: '620px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', margin: '16px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid #d9dfe7' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Merge Companies</h2>
+              <button onClick={closeMergeModal} style={{ color: '#8694a7', cursor: 'pointer', padding: '4px', background: 'none', border: 'none' }}>
+                <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#5a6577', marginBottom: '6px' }}>Destination — everything below will be moved here</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '8px', padding: '10px 14px' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>{companyName}</div>
+                    <div style={{ fontSize: '11px', color: '#5a6577' }}>{[companyCity, companyState].filter(Boolean).join(', ') || '—'}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{companyContacts.length} contacts</span>
+                    <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: '#e0e7ff', color: '#4338ca' }}>{companyProjects.length} projects</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#5a6577', marginBottom: '6px' }}>
+                  Select companies to merge into {companyName}
+                </div>
+                <input
+                  type="text" value={mergeSearch} onChange={(e) => setMergeSearch(e.target.value)}
+                  placeholder="Search companies..." style={inputStyle}
+                />
+                <div style={{ marginTop: '8px', border: '1px solid #e8ecf1', borderRadius: '8px', maxHeight: '260px', overflowY: 'auto' }}>
+                  {mergeCandidates.length === 0 ? (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', color: '#8694a7', fontSize: '12px' }}>No other companies found.</div>
+                  ) : (
+                    mergeCandidates.map((c) => {
+                      const checked = mergeSelected.includes(c.name);
+                      const pending = clientCompanies.find((co) => co.company_name === c.name)?.vendor_enrollment === 'pending';
+                      return (
+                        <label key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: checked ? '#f0f9ff' : '#fff' }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleMergeSelected(c.name)} style={{ width: '14px', height: '14px', accentColor: '#2979ff', cursor: 'pointer', flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {c.name}
+                              {pending && (
+                                <svg title="Vendor enrollment pending" style={{ width: '12px', height: '12px', color: '#e6a817' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#8694a7' }}>{[c.city, c.state].filter(Boolean).join(', ') || '—'}</div>
+                          </div>
+                          <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: '#dbe4f0', color: '#2979ff' }}>{c.contactCount}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: '#e0e7ff', color: '#4338ca' }}>{c.projectSet.size}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {mergeSelected.length > 0 && (
+                <div style={{ display: 'flex', gap: '6px', fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '10px 12px', lineHeight: 1.5 }}>
+                  <svg style={{ width: '14px', height: '14px', flexShrink: 0, marginTop: '1px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                  <span>
+                    All contacts, addresses, and project links from {mergeSelected.length === 1 ? 'this company' : `these ${mergeSelected.length} companies`} will move to <strong>{companyName}</strong>. Anything already on {companyName} (same contact, address, or job) is kept as-is and skipped. This can&apos;t be undone.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
+              <button onClick={closeMergeModal} style={{ padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+              <button
+                onClick={() => setMergeConfirmOpen(true)}
+                disabled={mergeSelected.length === 0}
+                style={{
+                  padding: '7px 14px', fontSize: '12px', fontWeight: 600, color: '#fff',
+                  background: mergeSelected.length > 0 ? '#d32f2f' : '#c8d1dc',
+                  border: 'none', borderRadius: '6px', cursor: mergeSelected.length > 0 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Merge {mergeSelected.length > 0 ? `${mergeSelected.length} ` : ''}Compan{mergeSelected.length === 1 ? 'y' : 'ies'} into {companyName}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Confirmation */}
+      {mergeConfirmOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 20px 40px -8px rgba(0,0,0,0.3)', width: '100%', maxWidth: '460px', margin: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #e8ecf1' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Confirm Merge</h2>
+              <button onClick={() => setMergeConfirmOpen(false)} style={{ color: '#8694a7', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
+                <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <p style={{ fontSize: '13px', color: '#3a4a5c', margin: '0 0 10px 0', lineHeight: 1.6 }}>
+                Merge <strong>{mergeSelected.join(', ')}</strong> into <strong style={{ color: '#1e293b' }}>{companyName}</strong>?
+              </p>
+              <p style={{ fontSize: '12px', color: '#5a6577', margin: 0, lineHeight: 1.6 }}>
+                {mergeSelected.length === 1 ? 'That company' : 'Those companies'} will be removed. {companyName} will keep every contact, address, and project link — duplicates are skipped automatically.
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 20px', borderTop: '1px solid #e8ecf1' }}>
+              <button onClick={() => setMergeConfirmOpen(false)} style={{ padding: '7px 16px', fontSize: '12px', fontWeight: 500, color: '#3a4a5c', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={commitMerge} style={{ padding: '7px 16px', fontSize: '12px', fontWeight: 600, color: '#fff', background: '#d32f2f', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Confirm Merge</button>
             </div>
           </div>
         </div>
