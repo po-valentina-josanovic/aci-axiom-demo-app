@@ -112,7 +112,7 @@ function CopiedTag() {
   );
 }
 
-export default function CreateProjectModal({ open, onClose, onCreated, initialCopySourceId = null }) {
+export default function CreateProjectModal({ open, onClose, onCreated }) {
   const {
     createProject, STAGES, PROJECT_TYPES, DIVISIONS, END_SECTORS, CURRENT_USER, projects,
     COPY_SECTIONS, COPY_GROUPS, COPY_GROUP_FORM_FIELDS, buildCopyPayload,
@@ -164,15 +164,14 @@ export default function CreateProjectModal({ open, onClose, onCreated, initialCo
     return { form: nextForm, copied };
   }
 
-  // Initialize on open — supports the list page's row-level Duplicate action.
+  // Reset to a blank form each time the modal opens — the user picks a copy
+  // source (if any) from the search panel below.
   const prevOpen = useRef(false);
   useEffect(() => {
     if (open && !prevOpen.current) {
-      const source = initialCopySourceId ? projects.find((p) => p.id === initialCopySourceId) || null : null;
-      const { form: nextForm, copied } = computeCopy(defaultForm, source, defaultGroups, {});
-      setForm(nextForm);
-      setCopiedFields(copied);
-      setCopySourceId(source ? source.id : '');
+      setForm(defaultForm);
+      setCopiedFields({});
+      setCopySourceId('');
       setCopyGroups(defaultGroups);
       setPickerOpen(false);
       setCopySearch('');
@@ -183,7 +182,7 @@ export default function CreateProjectModal({ open, onClose, onCreated, initialCo
     }
     prevOpen.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialCopySourceId]);
+  }, [open]);
 
   // Candidate source projects — most recent first, filtered by the search box.
   const copyCandidates = useMemo(() => {

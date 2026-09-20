@@ -10,9 +10,6 @@ import { downloadXls } from './components/exportXls';
 
 function PotentialProjectsPage() {
   const [modalOpen, setModalOpen] = useState(false);
-  // Set when the user clicks a row's Copy action — preselects that project as
-  // the copy source in the create modal.
-  const [copyFromId, setCopyFromId] = useState(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [exportPayload, setExportPayload] = useState({ rows: [], headers: [], count: 0 });
   const router = useRouter();
@@ -93,7 +90,7 @@ function PotentialProjectsPage() {
           </button>
           {/* New Project */}
           <button
-            onClick={() => { setCopyFromId(null); setModalOpen(true); }}
+            onClick={() => setModalOpen(true)}
             className="flex items-center gap-1.5 cursor-pointer"
             style={{
               padding: '5px 12px',
@@ -117,17 +114,14 @@ function PotentialProjectsPage() {
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', background: '#f1f5f9' }}>
         <ProjectListTable
           onVisibleRowsChange={handleVisibleRowsChange}
-          onDuplicate={(id) => { setCopyFromId(id); setModalOpen(true); }}
         />
       </div>
 
       <CreateProjectModal
         open={modalOpen}
-        initialCopySourceId={copyFromId}
-        onClose={() => { setModalOpen(false); setCopyFromId(null); }}
+        onClose={() => setModalOpen(false)}
         onCreated={(project) => {
           setModalOpen(false);
-          setCopyFromId(null);
           // One-time signal so the detail page can show what rode along on the copy.
           // Consumed on first read, so it never reappears on later visits.
           if (project.copied_from) {
