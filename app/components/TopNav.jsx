@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import NotificationBell from './NotificationBell';
 
 export default function TopNav() {
   const router = useRouter();
@@ -136,6 +137,7 @@ export default function TopNav() {
             </div>
           )}
         </div>
+        <NotificationBell />
         <button
           className="flex items-center justify-center cursor-pointer"
           style={{
