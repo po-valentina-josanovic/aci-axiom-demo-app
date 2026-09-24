@@ -38,21 +38,22 @@ export const FIELD_TYPES = [
   { key: 'image', label: 'Image Upload Field', hint: 'for adding images to the announcement', color: '#f59e0b' },
   { key: 'url', label: 'URL Field', hint: 'redirections to specific pages', color: '#2979ff' },
   { key: 'redirect', label: 'Redirection selection', hint: 'redirections to specific pages', color: '#0d9488' },
+  { key: 'recurrence', label: 'Recurring Reminder', hint: 'repeat the notification on a schedule', color: '#e91e63' },
 ];
 
 // audience: 'all' | 'users' | 'groups' | 'users_groups' | 'job'
 export const MOCK_TEMPLATES = [
-  { id: 't1', type: 'custom', name: 'Job-Specific', audience: 'job', fields: ['text', 'redirect'], recurrence: { repetition: 'weekly', start: '2026-09-24', end: '2027-01-01', override: false } },
-  { id: 't2', type: 'custom', name: 'Specific Users', audience: 'users', fields: ['text', 'textarea'], recurrence: { repetition: 'daily', start: '2026-09-24', end: '2026-10-15', override: false } },
-  { id: 't3', type: 'custom', name: 'User Groups', audience: 'groups', fields: ['text', 'rich'], recurrence: { repetition: 'monthly', start: '2026-10-01', end: '2027-03-31', override: false } },
+  { id: 't1', type: 'custom', name: 'Job-Specific', audience: 'job', fields: ['recurrence', 'text', 'redirect'], recurrence: { repetition: 'weekly', start: '2026-09-24', end: '2027-01-01', override: false } },
+  { id: 't2', type: 'custom', name: 'Specific Users', audience: 'users', fields: ['recurrence', 'text', 'textarea'], recurrence: { repetition: 'daily', start: '2026-09-24', end: '2026-10-15', override: false } },
+  { id: 't3', type: 'custom', name: 'User Groups', audience: 'groups', fields: ['recurrence', 'text', 'rich'], recurrence: { repetition: 'monthly', start: '2026-10-01', end: '2027-03-31', override: false } },
   { id: 't4', type: 'custom', name: 'General (Default)', audience: 'all', fields: ['text', 'textarea'], recurrence: { repetition: '', start: '', end: '', override: false } },
   { id: 't5', type: 'custom', name: 'Release Announcement Published', audience: 'all', fields: ['text', 'rich', 'url'], recurrence: { repetition: '', start: '', end: '', override: false } },
-  { id: 't6', type: 'custom', name: 'Specific Users & User Groups Template', audience: 'users_groups', fields: ['text'], recurrence: { repetition: 'weekly', start: '', end: '', override: false } },
-  { id: 't7', type: 'custom', name: 'Weekly Safety Toolbox Talk', audience: 'groups', fields: ['text', 'attachment'], recurrence: { repetition: 'weekly', start: '2026-09-28', end: '2026-12-31', override: false } },
+  { id: 't6', type: 'custom', name: 'Specific Users & User Groups Template', audience: 'users_groups', fields: ['recurrence', 'text'], recurrence: { repetition: 'weekly', start: '', end: '', override: false } },
+  { id: 't7', type: 'custom', name: 'Weekly Safety Toolbox Talk', audience: 'groups', fields: ['recurrence', 'text', 'attachment'], recurrence: { repetition: 'weekly', start: '2026-09-28', end: '2026-12-31', override: false } },
   { id: 't8', type: 'custom', name: 'Select all template', audience: 'all', fields: ['text', 'image'], recurrence: { repetition: '', start: '', end: '', override: false } },
 
-  { id: 'a1', type: 'auto', name: 'Missing PreCon Trades', event: 'missing_trades', active: true, audience: 'job', fields: ['text', 'redirect'], recurrence: { repetition: 'weekly', start: '', end: '', override: false } },
-  { id: 'a2', type: 'auto', name: 'NEW POC Snapshot', event: 'poc_snapshot', active: true, audience: 'groups', fields: ['text'], recurrence: { repetition: 'weekly', start: '2026-09-01', end: '2026-12-31', override: true } },
-  { id: 'a3', type: 'auto', name: 'Release Note Published', event: 'release_note', active: true, audience: 'all', fields: ['text', 'url'], recurrence: { repetition: 'daily', start: '', end: '', override: false } },
-  { id: 'a4', type: 'auto', name: 'Potential Project Mention', event: 'pp_mention', active: false, audience: 'users', fields: ['text', 'redirect'], recurrence: { repetition: 'daily', start: '', end: '', override: false } },
+  { id: 'a1', type: 'auto', name: 'Missing PreCon Trades', event: 'missing_trades', active: true, audience: 'job', fields: ['recurrence', 'text', 'redirect'], recurrence: { repetition: 'weekly', start: '', end: '', override: false } },
+  { id: 'a2', type: 'auto', name: 'NEW POC Snapshot', event: 'poc_snapshot', active: true, audience: 'groups', fields: ['recurrence', 'text'], recurrence: { repetition: 'weekly', start: '2026-09-01', end: '2026-12-31', override: true } },
+  { id: 'a3', type: 'auto', name: 'Release Note Published', event: 'release_note', active: true, audience: 'all', fields: ['recurrence', 'text', 'url'], recurrence: { repetition: 'daily', start: '', end: '', override: false } },
+  { id: 'a4', type: 'auto', name: 'Potential Project Mention', event: 'pp_mention', active: false, audience: 'users', fields: ['text', 'redirect'], recurrence: { repetition: '', start: '', end: '', override: false } },
 ];

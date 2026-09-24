@@ -8,7 +8,8 @@ import { RepeatIcon } from '../../components/NotificationBell';
 
 const inputStyle = { width: '100%', border: '1px solid #c8d1dc', borderRadius: '6px', padding: '7px 10px', fontSize: '12px', outline: 'none', background: '#fff', color: '#1e293b' };
 const labelStyle = { display: 'block', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', marginBottom: '4px' };
-const sectionLabel = { fontSize: '10px', fontWeight: 700, color: '#5a6577', textTransform: 'uppercase', letterSpacing: '0.05em' };
+const removeBtn = { padding: '4px 10px', fontSize: '11px', color: '#d32f2f', border: '1px solid #d32f2f', borderRadius: '4px', background: '#fff', cursor: 'pointer' };
+const sectionLabel ={ fontSize: '10px', fontWeight: 700, color: '#5a6577', textTransform: 'uppercase', letterSpacing: '0.05em' };
 
 const TONES = {
   info: { color: '#1e5bb8', background: '#eef4ff', border: '#c7d9f5' },
@@ -104,19 +105,43 @@ export default function TemplateBuilderModal({ template, templates, readOnly, on
   const availableEvents = TRIGGER_EVENTS.filter((e) => !usedEvents.includes(e.key));
   const event = TRIGGER_EVENTS.find((e) => e.key === form.event) || null;
   const summary = describeRecurrence(form.type, form.recurrence, event);
-  const canSave = form.name.trim() && (form.type === 'custom' || form.event) && summary.valid;
+  // Recurring Reminder is an optional Dynamic Content Field that can be added once.
+  const hasRecurrence = form.fields.includes('recurrence');
+  const availableFieldTypes = FIELD_TYPES.filter((ft) => ft.key !== 'recurrence' || !hasRecurrence);
+  const canSave = form.name.trim() && (form.type === 'custom' || form.event) && (!hasRecurrence || summary.valid);
 
   function set(patch) { setForm((f) => ({ ...f, ...patch })); }
   function setRecurrence(patch) { setForm((f) => ({ ...f, recurrence: { ...f.recurrence, ...patch } })); }
+
+  // Auto-trigger reminders start from the event's default repetition.
+  function defaultRecurrence(type, ev) {
+    return { ...EMPTY_RECURRENCE, repetition: type === 'auto' ? ev?.defaultRepetition || '' : '' };
+  }
 
   function setType(type) {
     if (type === form.type) return;
     set({ type, event: '', recurrence: { ...EMPTY_RECURRENCE } });
   }
 
+  function addField(key) {
+    set({
+      fields: [...form.fields, key],
+      ...(key === 'recurrence' && { recurrence: defaultRecurrence(form.type, event) }),
+    });
+  }
+
+  function removeField(i) {
+    const removed = form.fields[i];
+    set({
+      fields: form.fields.filter((_, j) => j !== i),
+      // Removing the Recurring Reminder field clears its schedule.
+      ...(removed === 'recurrence' && { recurrence: { ...EMPTY_RECURRENCE } }),
+    });
+  }
+
   function setEvent(key) {
     const ev = TRIGGER_EVENTS.find((e) => e.key === key);
-    set({ event: key, recurrence: { ...EMPTY_RECURRENCE, repetition: ev?.defaultRepetition || '' } });
+    set({ event: key, recurrence: hasRecurrence ? defaultRecurrence('auto', ev) : { ...EMPTY_RECURRENCE } });
   }
 
   function toggleAudience(part) {
@@ -131,8 +156,9 @@ export default function TemplateBuilderModal({ template, templates, readOnly, on
   function handleSave() {
     if (!canSave) return;
     const r = form.recurrence;
-    // Auto-trigger without override ignores the duration — drop stale dates.
-    const recurrence = form.type === 'auto' && !r.override ? { ...r, start: '', end: '' } : r;
+    // No reminder field → no recurrence; auto-trigger without override ignores the duration.
+    const recurrence = !hasRecurrence ? { ...EMPTY_RECURRENCE }
+      : form.type === 'auto' && !r.override ? { ...r, start: '', end: '' } : r;
     onSave({ ...form, name: form.name.trim(), recurrence, active: form.active ?? true });
   }
 
@@ -187,15 +213,6 @@ export default function TemplateBuilderModal({ template, templates, readOnly, on
             </div>
           )}
 
-          {/* Custom: optional recurring reminder directly under the name */}
-          {form.type === 'custom' && (
-            <div>
-              <div style={{ ...sectionLabel, marginBottom: '8px' }}>Recurring Reminder <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#8694a7' }}>(optional)</span></div>
-              <DateRangeRepetition recurrence={form.recurrence} onChange={setRecurrence} />
-              <RecurrenceSummary summary={summary} />
-            </div>
-          )}
-
           {/* Auto-trigger: event + fixed stop condition / override */}
           {form.type === 'auto' && (
             <>
@@ -212,40 +229,6 @@ export default function TemplateBuilderModal({ template, templates, readOnly, on
                   )}
                 </select>
               </div>
-
-              {event && (
-                <div>
-                  <div style={{ ...sectionLabel, marginBottom: '8px' }}>Recurring Reminder</div>
-                  {!form.recurrence.override ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
-                      <div>
-                        <label style={labelStyle}>Stop Condition <span style={{ fontWeight: 400, color: '#8694a7' }}>(default)</span></label>
-                        <div style={{ ...inputStyle, background: '#f1f5f9', color: '#3a4a5c' }}>Until {event.stopCondition}</div>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Repetition *</label>
-                        <RepetitionSelect value={form.recurrence.repetition} onChange={(v) => setRecurrence({ repetition: v })} />
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: '11px', color: '#8694a7', marginBottom: '8px' }}>
-                        Default stop condition <span style={{ textDecoration: 'line-through' }}>until {event.stopCondition}</span> no longer applies.
-                      </div>
-                      <DateRangeRepetition recurrence={form.recurrence} onChange={setRecurrence} required />
-                    </>
-                  )}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '12px', color: '#1e293b', cursor: 'pointer', width: 'fit-content' }}>
-                    <input
-                      type="checkbox"
-                      checked={form.recurrence.override}
-                      onChange={(e) => setRecurrence({ override: e.target.checked, start: '', end: '', repetition: e.target.checked ? '' : event.defaultRepetition })}
-                    />
-                    Override default stop condition with a custom duration
-                  </label>
-                  <RecurrenceSummary summary={summary} />
-                </div>
-              )}
             </>
           )}
 
@@ -274,12 +257,61 @@ export default function TemplateBuilderModal({ template, templates, readOnly, on
 
             {form.fields.map((key, i) => {
               const ft = FIELD_TYPES.find((f) => f.key === key);
+              if (key === 'recurrence') {
+                return (
+                  <div key={i} style={{ display: 'flex', gap: '10px', borderTop: '1px solid #eef1f5', paddingTop: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#2979ff' }}>{i + 2}.</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: ft.color }}>{ft.label}</span>
+                          <span style={{ fontSize: '11px', color: '#8694a7', marginLeft: '6px' }}>{ft.hint}</span>
+                        </div>
+                        <button type="button" onClick={() => removeField(i)} style={removeBtn}>Remove</button>
+                      </div>
+                      {form.type === 'custom' && <DateRangeRepetition recurrence={form.recurrence} onChange={setRecurrence} />}
+                      {form.type === 'auto' && event && (
+                        <>
+                          {!form.recurrence.override ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                              <div>
+                                <label style={labelStyle}>Stop Condition <span style={{ fontWeight: 400, color: '#8694a7' }}>(default)</span></label>
+                                <div style={{ ...inputStyle, background: '#f1f5f9', color: '#3a4a5c' }}>Until {event.stopCondition}</div>
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Repetition *</label>
+                                <RepetitionSelect value={form.recurrence.repetition} onChange={(v) => setRecurrence({ repetition: v })} />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: '11px', color: '#8694a7', marginBottom: '8px' }}>
+                                Default stop condition <span style={{ textDecoration: 'line-through' }}>until {event.stopCondition}</span> no longer applies.
+                              </div>
+                              <DateRangeRepetition recurrence={form.recurrence} onChange={setRecurrence} required />
+                            </>
+                          )}
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '12px', color: '#1e293b', cursor: 'pointer', width: 'fit-content' }}>
+                            <input
+                              type="checkbox"
+                              checked={form.recurrence.override}
+                              onChange={(e) => setRecurrence({ override: e.target.checked, start: '', end: '', repetition: e.target.checked ? '' : event.defaultRepetition })}
+                            />
+                            Override default stop condition with a custom duration
+                          </label>
+                        </>
+                      )}
+                      <RecurrenceSummary summary={summary} />
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', borderTop: '1px solid #eef1f5', paddingTop: '10px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#2979ff' }}>{i + 2}.</span>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: ft.color, width: '160px' }}>{ft.label}</span>
                   <input type="text" disabled placeholder={`${ft.label} content is filled in when publishing`} style={{ ...inputStyle, flex: 1, background: '#f8fafc' }} />
-                  <button type="button" onClick={() => set({ fields: form.fields.filter((_, j) => j !== i) })} style={{ padding: '4px 10px', fontSize: '11px', color: '#d32f2f', border: '1px solid #d32f2f', borderRadius: '4px', background: '#fff', cursor: 'pointer' }}>Remove</button>
+                  <button type="button" onClick={() => removeField(i)} style={removeBtn}>Remove</button>
                 </div>
               );
             })}
@@ -290,8 +322,8 @@ export default function TemplateBuilderModal({ template, templates, readOnly, on
               Click on the fields below to add them as additional
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px' }}>
-              {FIELD_TYPES.map((ft) => (
-                <button key={ft.key} type="button" onClick={() => set({ fields: [...form.fields, ft.key] })} style={{ padding: '5px 10px', fontSize: '12px', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>
+              {availableFieldTypes.map((ft) => (
+                <button key={ft.key} type="button" onClick={() => addField(ft.key)} style={{ padding: '5px 10px', fontSize: '12px', background: '#fff', border: '1px solid #c8d1dc', borderRadius: '6px', cursor: 'pointer' }}>
                   <span style={{ color: ft.color, fontWeight: 500 }}>{ft.label}</span>
                   <span style={{ color: '#8694a7', fontSize: '11px', marginLeft: '6px' }}>{ft.hint}</span>
                 </button>
