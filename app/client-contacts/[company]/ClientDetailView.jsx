@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useProjects } from '../../potential-projects/components/ProjectsStore';
 import ManageAddressesModal from '../components/ManageAddressesModal';
+import { pickPrimaryAddress } from '../components/addressUtils';
 
 const inputStyle = { width: '100%', border: '1px solid #c8d1dc', borderRadius: '6px', padding: '7px 10px', fontSize: '12px', outline: 'none', background: '#fff', color: '#1e293b' };
 const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', marginBottom: '4px' };
@@ -19,12 +20,15 @@ function getRoles(c) {
 
 // Group addresses that share the same physical location so Main/Billing (or
 // Mailing/Shipping) collapse into one row when they were entered identically.
+// Each type keeps its for_role tag (e.g. Main split between Client/Owner) so
+// the row can show which role(s) that address belongs to.
 function groupAddresses(addresses) {
   const map = new Map();
   (addresses || []).forEach((a) => {
     const key = [a.street, a.city, a.state, a.zip, a.country].map((v) => (v || '').trim().toLowerCase()).join('|');
-    if (!map.has(key)) map.set(key, { ...a, types: [a.type] });
-    else map.get(key).types.push(a.type);
+    const entry = { type: a.type, for_role: a.for_role || null };
+    if (!map.has(key)) map.set(key, { ...a, types: [entry] });
+    else map.get(key).types.push(entry);
   });
   return Array.from(map.values());
 }
@@ -207,11 +211,12 @@ export default function ClientDetailView({ companyName }) {
   function addressLabel(addressId) {
     const addr = companyAddresses.find((a) => a.id === addressId);
     if (!addr) return null;
-    return `${addr.type} — ${[addr.city, addr.state].filter(Boolean).join(', ')}`;
+    const typeLabel = addr.for_role ? `${addr.type} (${addr.for_role})` : addr.type;
+    return `${typeLabel} — ${[addr.city, addr.state].filter(Boolean).join(', ')}`;
   }
 
   function handleSaveAddresses(addresses) {
-    const main = addresses.find((a) => a.type === 'Main');
+    const main = pickPrimaryAddress(addresses, companyRecord?.company_type || []);
     const updates = { addresses };
     if (main?.city) updates.company_city = main.city;
     if (main?.state) updates.company_state = main.state;
@@ -534,7 +539,11 @@ export default function ClientDetailView({ companyName }) {
                       <tr key={idx} style={{ background: '#fff' }}>
                         <td style={tdStyle}>
                           <div style={{ display: 'flex', gap: '5px', color: '#5a6577' }}>
-                            {addr.types.map((t) => <span key={t} title={t}><AddressTypeIcon type={t} /></span>)}
+                            {addr.types.map((t, i) => (
+                              <span key={i} title={t.for_role ? `${t.type} (${t.for_role})` : t.type}>
+                                <AddressTypeIcon type={t.type} />
+                              </span>
+                            ))}
                           </div>
                         </td>
                         <td style={{ ...tdStyle, color: '#1e293b' }}>{addr.street}</td>

@@ -71,7 +71,9 @@ const COMPANY_TYPES = [
 
 const COMPANY_GROUPS = ['ACI', 'API'];
 
-// Always-present address slots on every company
+// Reserved base address slots. Which pair applies depends on company_type:
+// Client/Owner use Main+Billing, Engineer/Architect use Mailing+Shipping.
+// See app/client-contacts/components/addressUtils.js for the gating rules.
 const ADDRESS_TYPES = ['Main', 'Billing', 'Mailing', 'Shipping'];
 
 // Picklist for additional, company-specific offices/locations

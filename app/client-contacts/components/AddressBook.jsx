@@ -1,32 +1,83 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useProjects } from '../../potential-projects/components/ProjectsStore';
 import AddressFields from './AddressFields';
+import { MAIN_BILLING_TYPES, showsMainBilling, showsMailingShipping, needsClientOwnerSplit } from './addressUtils';
 
 const BLANK_ADDR = { street: '', city: '', state: '', zip: '', country: '' };
 const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', marginBottom: '4px' };
 const selectStyle = { width: '100%', border: '1px solid #c8d1dc', borderRadius: '6px', padding: '7px 10px', fontSize: '12px', outline: 'none', background: '#fff', color: '#1e293b' };
+const groupLabelStyle = { fontSize: '10px', fontWeight: 700, color: '#8694a7', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' };
+
+function SplitToggle({ value, onChange, label }) {
+  return (
+    <div onClick={() => onChange(!value)} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px', userSelect: 'none' }}>
+      <div style={{ width: '32px', height: '18px', borderRadius: '9px', flexShrink: 0, position: 'relative', background: value ? '#2979ff' : '#c8d1dc', transition: 'background 0.2s' }}>
+        <div style={{ position: 'absolute', top: '2px', left: value ? '16px' : '2px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
+      </div>
+      <span style={{ fontSize: '11px', fontWeight: 500, color: '#3a4a5c' }}>{label}</span>
+    </div>
+  );
+}
 
 // Fully-controlled: `value` is the flat addresses array (Main/Billing/Mailing/
-// Shipping + any extras). Renders the same Main+Billing / Mailing+Shipping
-// pairs as the Manage Addresses modal, plus an editable list of extra
-// offices — shared so the New Company modal can offer the same editing
-// experience when "same address for all" is turned off.
-export default function AddressBook({ value, onChange }) {
+// Shipping + any extras). Which pairs render depends on `companyType`: Client
+// and Owner share Main+Billing, Engineer and Architect share Mailing+Shipping.
+// When a company is both Client and Owner, a toggle lets the two share one
+// Main+Billing pair or use two separate role-tagged pairs.
+export default function AddressBook({ value, onChange, companyType = [] }) {
   const { ADDRESS_TYPES, EXTRA_ADDRESS_TYPES } = useProjects();
   const blankIds = useRef({});
-  ADDRESS_TYPES.forEach((type) => {
-    if (!blankIds.current[type]) blankIds.current[type] = crypto.randomUUID();
-  });
 
-  function getDefault(type) {
-    return value.find((a) => a.type === type) || { id: blankIds.current[type], type, ...BLANK_ADDR };
+  function blankId(type, role) {
+    const key = `${type}|${role || ''}`;
+    if (!blankIds.current[key]) blankIds.current[key] = crypto.randomUUID();
+    return blankIds.current[key];
   }
 
-  function updateDefault(type, fields) {
-    const updated = { ...getDefault(type), ...fields };
-    onChange([...value.filter((a) => a.type !== type), updated]);
+  const showMainBilling = showsMainBilling(companyType);
+  const showMailingShipping = showsMailingShipping(companyType);
+  const canSplit = needsClientOwnerSplit(companyType);
+
+  const [splitByRole, setSplitByRole] = useState(() => value.some((a) => MAIN_BILLING_TYPES.includes(a.type) && a.for_role));
+
+  function getDefault(type, role) {
+    const exact = value.find((a) => a.type === type && (role ? a.for_role === role : !a.for_role));
+    if (exact) return exact;
+    // Fall back to any entry of this type so data isn't hidden if the split
+    // state and the stored data briefly disagree (e.g. right after a toggle).
+    if (!role) {
+      const any = value.find((a) => a.type === type);
+      if (any) return any;
+    }
+    return { id: blankId(type, role), type, for_role: role || undefined, ...BLANK_ADDR };
+  }
+
+  function updateDefault(type, role, fields) {
+    const updated = { ...getDefault(type, role), ...fields, type, for_role: role || undefined };
+    onChange([...value.filter((a) => !(a.type === type && (role ? a.for_role === role : !a.for_role))), updated]);
+  }
+
+  function handleToggleSplit(next) {
+    if (next) {
+      const seeded = MAIN_BILLING_TYPES.flatMap((type) => {
+        const shared = value.find((a) => a.type === type && !a.for_role);
+        return ['Client', 'Owner'].map((role) => {
+          const existing = value.find((a) => a.type === type && a.for_role === role);
+          if (existing) return existing;
+          return { id: crypto.randomUUID(), type, for_role: role, ...(shared || BLANK_ADDR) };
+        });
+      });
+      onChange([...value.filter((a) => !MAIN_BILLING_TYPES.includes(a.type)), ...seeded]);
+    } else {
+      const merged = MAIN_BILLING_TYPES.map((type) => {
+        const base = value.find((a) => a.type === type && a.for_role === 'Client') || value.find((a) => a.type === type && a.for_role === 'Owner');
+        return { id: base?.id || crypto.randomUUID(), type, ...(base || BLANK_ADDR) };
+      });
+      onChange([...value.filter((a) => !MAIN_BILLING_TYPES.includes(a.type)), ...merged]);
+    }
+    setSplitByRole(next);
   }
 
   const extras = value.filter((a) => !ADDRESS_TYPES.includes(a.type));
@@ -45,35 +96,66 @@ export default function AddressBook({ value, onChange }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Customer Address & Customer Billing Address */}
-      <div>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Customer Address & Customer Billing Address</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#8694a7', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Main</div>
-            <AddressFields value={getDefault('Main')} onChange={(v) => updateDefault('Main', v)} />
-          </div>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#8694a7', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Billing</div>
-            <AddressFields value={getDefault('Billing')} onChange={(v) => updateDefault('Billing', v)} />
-          </div>
+      {/* Client/Owner: Main + Billing */}
+      {showMainBilling && (
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Customer Address & Customer Billing Address</div>
+          {canSplit && (
+            <SplitToggle
+              value={splitByRole}
+              onChange={handleToggleSplit}
+              label={splitByRole ? 'Using separate addresses for Client and Owner — click to share one' : 'Use the same Main/Billing address for Client and Owner'}
+            />
+          )}
+          {!canSplit || !splitByRole ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <div style={groupLabelStyle}>Main</div>
+                <AddressFields value={getDefault('Main', null)} onChange={(v) => updateDefault('Main', null, v)} />
+              </div>
+              <div>
+                <div style={groupLabelStyle}>Billing</div>
+                <AddressFields value={getDefault('Billing', null)} onChange={(v) => updateDefault('Billing', null, v)} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {['Client', 'Owner'].map((role) => (
+                <div key={role} style={{ border: '1px solid #e8ecf1', borderRadius: '8px', padding: '14px', background: '#fafbfc' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#2979ff', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '10px' }}>{role}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <div style={groupLabelStyle}>Main</div>
+                      <AddressFields value={getDefault('Main', role)} onChange={(v) => updateDefault('Main', role, v)} />
+                    </div>
+                    <div>
+                      <div style={groupLabelStyle}>Billing</div>
+                      <AddressFields value={getDefault('Billing', role)} onChange={(v) => updateDefault('Billing', role, v)} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Vendor Address and Vendor Shipping Address */}
-      <div style={{ borderTop: '1px solid #e8ecf1', paddingTop: '16px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Vendor Address and Vendor Shipping Address</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#8694a7', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Mailing</div>
-            <AddressFields value={getDefault('Mailing')} onChange={(v) => updateDefault('Mailing', v)} />
-          </div>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#8694a7', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Shipping</div>
-            <AddressFields value={getDefault('Shipping')} onChange={(v) => updateDefault('Shipping', v)} />
+      {/* Engineer/Architect: Mailing + Shipping, always shared */}
+      {showMailingShipping && (
+        <div style={{ borderTop: showMainBilling ? '1px solid #e8ecf1' : 'none', paddingTop: showMainBilling ? '16px' : 0 }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Vendor Address and Vendor Shipping Address</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <div style={groupLabelStyle}>Mailing</div>
+              <AddressFields value={getDefault('Mailing', null)} onChange={(v) => updateDefault('Mailing', null, v)} />
+            </div>
+            <div>
+              <div style={groupLabelStyle}>Shipping</div>
+              <AddressFields value={getDefault('Shipping', null)} onChange={(v) => updateDefault('Shipping', null, v)} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Additional Addresses */}
       <div style={{ borderTop: '1px solid #e8ecf1', paddingTop: '16px' }}>

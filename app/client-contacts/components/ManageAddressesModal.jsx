@@ -28,7 +28,7 @@ export default function ManageAddressesModal({ open, onClose, company, onSave })
         </div>
 
         <div style={{ padding: '20px 24px' }}>
-          <AddressBook value={addresses} onChange={setAddresses} />
+          <AddressBook value={addresses} onChange={setAddresses} companyType={company?.company_type || []} />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 24px', borderTop: '1px solid #d9dfe7' }}>
