@@ -7,6 +7,7 @@ import { useProjects } from '../potential-projects/components/ProjectsStore';
 import MultiSelectDropdown from '../audit-log/components/MultiSelectDropdown';
 import AddressFields from './components/AddressFields';
 import AddressBook from './components/AddressBook';
+import { relevantAddressTypes, primaryAddressType, pickPrimaryAddress } from './components/addressUtils';
 
 const inputStyle = { width: '100%', border: '1px solid #c8d1dc', borderRadius: '6px', padding: '7px 10px', fontSize: '12px', outline: 'none', background: '#fff', color: '#1e293b' };
 const labelStyle = { display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#3a4a5c', marginBottom: '4px' };
@@ -42,7 +43,7 @@ function SameAddressToggle({ value, onChange }) {
         <div style={{ position: 'absolute', top: '3px', left: value ? '19px' : '3px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
       </div>
       <span style={{ fontSize: '12px', fontWeight: 500, color: value ? '#1d4ed8' : '#3a4a5c' }}>
-        Use the same address for mailing, shipping, and billing
+        Use the same address for all address types
       </span>
     </div>
   );
@@ -128,11 +129,14 @@ export default function ClientContactsView() {
     );
   }, [companyGroups, search]);
 
-  // The Main address, regardless of which mode is active — used for
-  // validation and for the company's derived city/state.
+  // The company's type(s) determine whether it uses Main/Billing
+  // (Client/Owner) or Mailing/Shipping (Engineer/Architect) as its primary
+  // address pair. That primary address is used for validation and for the
+  // company's derived city/state.
+  const primaryType = primaryAddressType(form.company_type);
   const mainAddr = form.same_address_for_all
     ? form.address
-    : (form.addresses.find((a) => a.type === 'Main') || {});
+    : pickPrimaryAddress(form.addresses, form.company_type);
 
   const isFormValid =
     form.company_name.trim() &&
@@ -151,9 +155,10 @@ export default function ClientContactsView() {
   function handleToggleSameAddress(value) {
     setForm((f) => {
       // Switching off: seed the address book with whatever was typed into
-      // the simple Main address so nothing already entered is lost.
+      // the simple address field so nothing already entered is lost.
       if (!value && f.addresses.length === 0 && (f.address.street || f.address.city)) {
-        return { ...f, same_address_for_all: value, addresses: [{ id: crypto.randomUUID(), type: 'Main', ...f.address }] };
+        const type = primaryAddressType(f.company_type);
+        return { ...f, same_address_for_all: value, addresses: [{ id: crypto.randomUUID(), type, ...f.address }] };
       }
       return { ...f, same_address_for_all: value };
     });
@@ -165,17 +170,11 @@ export default function ClientContactsView() {
     let addresses;
     let mainId;
     if (form.same_address_for_all) {
-      const mainAddrObj = { id: crypto.randomUUID(), type: 'Main', ...form.address };
-      addresses = [
-        mainAddrObj,
-        { id: crypto.randomUUID(), type: 'Billing', ...form.address },
-        { id: crypto.randomUUID(), type: 'Mailing', ...form.address },
-        { id: crypto.randomUUID(), type: 'Shipping', ...form.address },
-      ];
-      mainId = mainAddrObj.id;
+      addresses = relevantAddressTypes(form.company_type).map((type) => ({ id: crypto.randomUUID(), type, ...form.address }));
+      mainId = (addresses.find((a) => a.type === primaryType) || addresses[0] || {}).id;
     } else {
       addresses = form.addresses;
-      mainId = (addresses.find((a) => a.type === 'Main') || {}).id;
+      mainId = pickPrimaryAddress(addresses, form.company_type).id;
     }
 
     createClientCompany({
@@ -359,7 +358,7 @@ export default function ClientContactsView() {
                 {form.same_address_for_all ? (
                   <AddressFields value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} />
                 ) : (
-                  <AddressBook value={form.addresses} onChange={(v) => setForm((f) => ({ ...f, addresses: v }))} />
+                  <AddressBook value={form.addresses} onChange={(v) => setForm((f) => ({ ...f, addresses: v }))} companyType={form.company_type} />
                 )}
               </div>
 
